@@ -1,0 +1,879 @@
+openapi: "3.0.3"
+info:
+  title: FinFlow API
+  description: 家計・サブスク管理アプリ FinFlow のバックエンドAPI
+  version: "1.0.0"
+
+servers:
+  - url: http://localhost:5000
+    description: 開発環境
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # ---- Auth ----
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        userId:
+          type: string
+        email:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+
+    # ---- Category ----
+    Category:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        color:
+          type: string
+          example: "#F59E0B"
+        isSystem:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateCategoryRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        color:
+          type: string
+          default: "#6B7280"
+
+    UpdateCategoryRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        color:
+          type: string
+
+    # ---- Expense ----
+    Expense:
+      type: object
+      properties:
+        id:
+          type: integer
+        categoryId:
+          type: integer
+          nullable: true
+        categoryName:
+          type: string
+          nullable: true
+        categoryColor:
+          type: string
+          nullable: true
+        amount:
+          type: number
+          format: double
+        description:
+          type: string
+          nullable: true
+        date:
+          type: string
+          format: date
+        importSource:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateExpenseRequest:
+      type: object
+      required: [amount, date]
+      properties:
+        categoryId:
+          type: integer
+          nullable: true
+        amount:
+          type: number
+          format: double
+          minimum: 0.01
+        description:
+          type: string
+          maxLength: 500
+        date:
+          type: string
+          format: date
+
+    UpdateExpenseRequest:
+      type: object
+      properties:
+        categoryId:
+          type: integer
+          nullable: true
+        amount:
+          type: number
+          format: double
+          minimum: 0.01
+        description:
+          type: string
+          maxLength: 500
+        date:
+          type: string
+          format: date
+
+    PagedExpenses:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Expense"
+        totalCount:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    # ---- Subscription ----
+    Subscription:
+      type: object
+      properties:
+        id:
+          type: integer
+        categoryId:
+          type: integer
+          nullable: true
+        categoryName:
+          type: string
+          nullable: true
+        serviceName:
+          type: string
+        amount:
+          type: number
+          format: double
+        billingCycle:
+          type: string
+          enum: [monthly, yearly]
+        nextBillingDate:
+          type: string
+          format: date
+        isActive:
+          type: boolean
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateSubscriptionRequest:
+      type: object
+      required: [serviceName, amount, billingCycle, nextBillingDate]
+      properties:
+        categoryId:
+          type: integer
+          nullable: true
+        serviceName:
+          type: string
+          maxLength: 200
+        amount:
+          type: number
+          format: double
+          minimum: 0.01
+        billingCycle:
+          type: string
+          enum: [monthly, yearly]
+        nextBillingDate:
+          type: string
+          format: date
+        notes:
+          type: string
+          maxLength: 500
+
+    UpdateSubscriptionRequest:
+      type: object
+      properties:
+        categoryId:
+          type: integer
+          nullable: true
+        serviceName:
+          type: string
+          maxLength: 200
+        amount:
+          type: number
+          format: double
+        billingCycle:
+          type: string
+          enum: [monthly, yearly]
+        nextBillingDate:
+          type: string
+          format: date
+        isActive:
+          type: boolean
+        notes:
+          type: string
+
+    # ---- Reports ----
+    CategoryBreakdown:
+      type: object
+      properties:
+        categoryId:
+          type: integer
+        categoryName:
+          type: string
+        categoryColor:
+          type: string
+        totalAmount:
+          type: number
+        count:
+          type: integer
+        percentage:
+          type: number
+
+    MonthlyReport:
+      type: object
+      properties:
+        year:
+          type: integer
+        month:
+          type: integer
+        totalAmount:
+          type: number
+        expenseCount:
+          type: integer
+        categoryBreakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategoryBreakdown"
+
+    DashboardSummary:
+      type: object
+      properties:
+        currentMonthTotal:
+          type: number
+        previousMonthTotal:
+          type: number
+        monthOverMonthChange:
+          type: number
+        topCategories:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategoryBreakdown"
+        recentExpenses:
+          type: array
+          items:
+            $ref: "#/components/schemas/Expense"
+
+    # ---- Classification Rules ----
+    ClassificationRule:
+      type: object
+      properties:
+        id:
+          type: integer
+        categoryId:
+          type: integer
+        categoryName:
+          type: string
+        keyword:
+          type: string
+        priority:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateClassificationRuleRequest:
+      type: object
+      required: [categoryId, keyword]
+      properties:
+        categoryId:
+          type: integer
+        keyword:
+          type: string
+          maxLength: 200
+        priority:
+          type: integer
+          default: 0
+
+    # ---- Errors ----
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        statusCode:
+          type: integer
+
+paths:
+  # ======== Auth ========
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: ユーザー登録
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "200":
+          description: 登録成功・JWTトークン返却
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: ログイン
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: ログイン成功・JWTトークン返却
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: 認証失敗
+
+  # ======== Categories ========
+  /api/categories:
+    get:
+      tags: [Categories]
+      summary: カテゴリ一覧取得（システム共通 + ユーザー独自）
+      responses:
+        "200":
+          description: カテゴリリスト
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Category"
+    post:
+      tags: [Categories]
+      summary: カテゴリ作成
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCategoryRequest"
+      responses:
+        "201":
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/categories/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Categories]
+      summary: カテゴリ取得
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+          description: OK
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Categories]
+      summary: カテゴリ更新
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCategoryRequest"
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Categories]
+      summary: カテゴリ削除（システムカテゴリは削除不可）
+      responses:
+        "204":
+          description: 削除成功
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ======== Expenses ========
+  /api/expenses:
+    get:
+      tags: [Expenses]
+      summary: 支出一覧取得（フィルタ・ページング対応）
+      parameters:
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: category
+          schema:
+            type: integer
+        - in: query
+          name: minAmount
+          schema:
+            type: number
+        - in: query
+          name: maxAmount
+          schema:
+            type: number
+        - in: query
+          name: keyword
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: 支出リスト
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagedExpenses"
+    post:
+      tags: [Expenses]
+      summary: 支出作成
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExpenseRequest"
+      responses:
+        "201":
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Expense"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/expenses/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Expenses]
+      summary: 支出取得
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Expense"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Expenses]
+      summary: 支出更新
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateExpenseRequest"
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Expense"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Expenses]
+      summary: 支出削除
+      responses:
+        "204":
+          description: 削除成功
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/expenses/import:
+    post:
+      tags: [Expenses]
+      summary: CSV一括取込
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                preview:
+                  type: boolean
+                  default: false
+      responses:
+        "200":
+          description: 取込結果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  importedCount:
+                    type: integer
+                  skippedCount:
+                    type: integer
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        row:
+                          type: integer
+                        message:
+                          type: string
+                  preview:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Expense"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  # ======== Subscriptions ========
+  /api/subscriptions:
+    get:
+      tags: [Subscriptions]
+      summary: サブスク一覧取得
+      responses:
+        "200":
+          description: サブスクリスト
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Subscription"
+    post:
+      tags: [Subscriptions]
+      summary: サブスク登録
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSubscriptionRequest"
+      responses:
+        "201":
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subscription"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/subscriptions/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Subscriptions]
+      summary: サブスク取得
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subscription"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Subscriptions]
+      summary: サブスク更新
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSubscriptionRequest"
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subscription"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Subscriptions]
+      summary: サブスク削除
+      responses:
+        "204":
+          description: 削除成功
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ======== Reports ========
+  /api/reports/monthly:
+    get:
+      tags: [Reports]
+      summary: 月次集計
+      parameters:
+        - in: query
+          name: year
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: month
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+      responses:
+        "200":
+          description: 月次レポート
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlyReport"
+
+  /api/reports/monthly/pdf:
+    get:
+      tags: [Reports]
+      summary: 月次レポートPDFダウンロード
+      parameters:
+        - in: query
+          name: year
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: month
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: PDFファイル
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+  /api/reports/by-category:
+    get:
+      tags: [Reports]
+      summary: カテゴリ別集計
+      parameters:
+        - in: query
+          name: year
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: month
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: カテゴリ別内訳
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CategoryBreakdown"
+
+  /api/dashboard/summary:
+    get:
+      tags: [Dashboard]
+      summary: ダッシュボード用サマリ
+      responses:
+        "200":
+          description: サマリデータ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  # ======== Classification Rules ========
+  /api/classification-rules:
+    get:
+      tags: [ClassificationRules]
+      summary: 自動分類ルール一覧
+      responses:
+        "200":
+          description: ルールリスト
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ClassificationRule"
+    post:
+      tags: [ClassificationRules]
+      summary: 分類ルール作成
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateClassificationRuleRequest"
+      responses:
+        "201":
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClassificationRule"
+
+  /api/classification-rules/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+    put:
+      tags: [ClassificationRules]
+      summary: 分類ルール更新
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateClassificationRuleRequest"
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClassificationRule"
+    delete:
+      tags: [ClassificationRules]
+      summary: 分類ルール削除
+      responses:
+        "204":
+          description: 削除成功
+
+components:
+  responses:
+    BadRequest:
+      description: バリデーションエラー
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: リソースが見つからない
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
