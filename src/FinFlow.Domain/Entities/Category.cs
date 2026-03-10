@@ -10,8 +10,7 @@ public class Category
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 
-    // Navigation properties
-    public ApplicationUser? User { get; set; }
+    // Navigation properties (within Domain only; ApplicationUser is in Infrastructure)
     public ICollection<Expense> Expenses { get; set; } = new List<Expense>();
     public ICollection<Subscription> Subscriptions { get; set; } = new List<Subscription>();
     public ICollection<ClassificationRule> ClassificationRules { get; set; } = new List<ClassificationRule>();

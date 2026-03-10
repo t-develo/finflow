@@ -14,7 +14,6 @@ public class Subscription
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 
-    // Navigation properties
-    public ApplicationUser? User { get; set; }
+    // Navigation properties (within Domain only)
     public Category? Category { get; set; }
 }

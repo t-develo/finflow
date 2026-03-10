@@ -1,4 +1,5 @@
 using FinFlow.Domain.Entities;
+using FinFlow.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,6 +18,7 @@ public class FinFlowDbContext : IdentityDbContext<ApplicationUser>
     {
         base.OnModelCreating(builder);
 
+        // Category: FKはUserId(string)のみで管理。ナビゲーションはInfrastructure側で設定
         builder.Entity<Category>(e =>
         {
             e.HasKey(c => c.Id);
@@ -24,8 +26,8 @@ public class FinFlowDbContext : IdentityDbContext<ApplicationUser>
             e.Property(c => c.Color).HasMaxLength(7).HasDefaultValue("#6B7280");
             e.Property(c => c.UserId).HasMaxLength(450);
             e.HasIndex(c => c.UserId).HasDatabaseName("IX_Categories_UserId");
-            e.HasOne(c => c.User)
-                .WithMany(u => u.Categories)
+            e.HasOne<ApplicationUser>()
+                .WithMany()
                 .HasForeignKey(c => c.UserId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .IsRequired(false);
@@ -41,8 +43,8 @@ public class FinFlowDbContext : IdentityDbContext<ApplicationUser>
             e.HasIndex(ex => ex.UserId).HasDatabaseName("IX_Expenses_UserId");
             e.HasIndex(ex => ex.Date).HasDatabaseName("IX_Expenses_Date");
             e.HasIndex(ex => ex.CategoryId).HasDatabaseName("IX_Expenses_CategoryId");
-            e.HasOne(ex => ex.User)
-                .WithMany(u => u.Expenses)
+            e.HasOne<ApplicationUser>()
+                .WithMany()
                 .HasForeignKey(ex => ex.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
             e.HasOne(ex => ex.Category)
@@ -62,8 +64,8 @@ public class FinFlowDbContext : IdentityDbContext<ApplicationUser>
             e.Property(s => s.Notes).HasMaxLength(500);
             e.HasIndex(s => s.UserId).HasDatabaseName("IX_Subscriptions_UserId");
             e.HasIndex(s => s.NextBillingDate).HasDatabaseName("IX_Subscriptions_NextBillingDate");
-            e.HasOne(s => s.User)
-                .WithMany(u => u.Subscriptions)
+            e.HasOne<ApplicationUser>()
+                .WithMany()
                 .HasForeignKey(s => s.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
             e.HasOne(s => s.Category)
@@ -79,8 +81,8 @@ public class FinFlowDbContext : IdentityDbContext<ApplicationUser>
             e.Property(r => r.UserId).HasMaxLength(450).IsRequired();
             e.Property(r => r.Keyword).HasMaxLength(200).IsRequired();
             e.HasIndex(r => r.UserId).HasDatabaseName("IX_ClassificationRules_UserId");
-            e.HasOne(r => r.User)
-                .WithMany(u => u.ClassificationRules)
+            e.HasOne<ApplicationUser>()
+                .WithMany()
                 .HasForeignKey(r => r.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
             e.HasOne(r => r.Category)

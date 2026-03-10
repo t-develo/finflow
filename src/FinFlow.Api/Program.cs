@@ -1,7 +1,7 @@
 using System.Text;
 using FinFlow.Api.Middleware;
-using FinFlow.Domain.Entities;
 using FinFlow.Infrastructure.Data;
+using FinFlow.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
