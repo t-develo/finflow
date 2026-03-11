@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using FinFlow.Domain.Exceptions;
 
 namespace FinFlow.Api.Middleware;
 
@@ -33,6 +34,7 @@ public class GlobalExceptionMiddleware
 
         var (statusCode, message) = exception switch
         {
+            ConflictException => (HttpStatusCode.Conflict, exception.Message),
             ArgumentException => (HttpStatusCode.BadRequest, exception.Message),
             KeyNotFoundException => (HttpStatusCode.NotFound, exception.Message),
             UnauthorizedAccessException => (HttpStatusCode.Forbidden, "Access denied."),

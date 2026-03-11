@@ -29,14 +29,18 @@ public class ExpensesTestFixture : WebApplicationFactory<Program>
             services.AddDbContext<FinFlowDbContext>(options =>
                 options.UseInMemoryDatabase($"FinFlowExpensesTest_{Guid.NewGuid()}"));
         });
+    }
+
+    protected override Microsoft.Extensions.Hosting.IHost CreateHost(Microsoft.Extensions.Hosting.IHostBuilder builder)
+    {
+        var host = base.CreateHost(builder);
 
         // ホスト起動後にDBを初期化（シードデータを適用）
-        builder.Configure(app =>
-        {
-            using var scope = app.ApplicationServices.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<FinFlowDbContext>();
-            db.Database.EnsureCreated();
-        });
+        using var scope = host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FinFlowDbContext>();
+        db.Database.EnsureCreated();
+
+        return host;
     }
 }
 

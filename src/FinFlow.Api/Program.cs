@@ -1,7 +1,9 @@
 using System.Text;
 using FinFlow.Api.Middleware;
+using FinFlow.Domain.Interfaces;
 using FinFlow.Infrastructure.Data;
 using FinFlow.Infrastructure.Identity;
+using FinFlow.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -86,11 +88,15 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// Application services (will be registered by each SE in their sprints)
-// builder.Services.AddScoped<IExpenseService, ExpenseService>();
-// builder.Services.AddScoped<ICategoryService, CategoryService>();
-// builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
-// builder.Services.AddScoped<IReportService, ReportService>();
+// Application services
+// SE-A 担当サービス（S1-A-001〜S1-A-004）
+builder.Services.AddScoped<IExpenseService, ExpenseService>();
+builder.Services.AddScoped<ICategoryService, CategoryService>();
+
+// SE-B 担当サービス（S1-B-001〜S1-B-004）
+builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
+builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddScoped<IDashboardService, DashboardService>();
 
 builder.Services.AddLogging();
 
