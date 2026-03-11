@@ -4,7 +4,6 @@ public interface IReportService
 {
     Task<MonthlyReportDto> GetMonthlyReportAsync(string userId, int year, int month);
     Task<IEnumerable<CategoryBreakdownDto>> GetCategoryBreakdownAsync(string userId, int year, int month);
-    Task<DashboardSummaryDto> GetDashboardSummaryAsync(string userId);
 }
 
 public record MonthlyReportDto(

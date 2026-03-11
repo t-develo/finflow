@@ -9,7 +9,14 @@ public interface IExpenseService
     Task<Expense> CreateExpenseAsync(Expense expense);
     Task<Expense?> UpdateExpenseAsync(int id, string userId, Expense updated);
     Task<bool> DeleteExpenseAsync(int id, string userId);
-    Task<int> ImportExpensesAsync(IEnumerable<Expense> expenses, string userId);
+    Task<ImportExpensesResult> ImportExpensesAsync(IEnumerable<Expense> expenses, string userId);
+}
+
+public class ImportExpensesResult
+{
+    public int Imported { get; set; }
+    public int Skipped { get; set; }
+    public List<string> Errors { get; set; } = new();
 }
 
 public class ExpenseFilter
