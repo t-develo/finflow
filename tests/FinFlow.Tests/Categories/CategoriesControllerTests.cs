@@ -28,6 +28,18 @@ public class CategoriesTestFixture : WebApplicationFactory<Program>
                 options.UseInMemoryDatabase("FinFlowCategoriesTest"));
         });
     }
+
+    protected override Microsoft.Extensions.Hosting.IHost CreateHost(Microsoft.Extensions.Hosting.IHostBuilder builder)
+    {
+        var host = base.CreateHost(builder);
+
+        // ホスト起動後にDBを初期化（システムカテゴリのシードデータを適用）
+        using var scope = host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FinFlowDbContext>();
+        db.Database.EnsureCreated();
+
+        return host;
+    }
 }
 
 [Trait("Category", "CategoriesController")]
