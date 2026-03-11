@@ -17,6 +17,9 @@ namespace FinFlow.Tests.Expenses;
 /// </summary>
 public class ExpensesTestFixture : WebApplicationFactory<Program>
 {
+    // フィクスチャインスタンスごとに一意なDB名（リクエスト間でデータを共有するため）
+    private readonly string _dbName = $"FinFlowExpensesTest_{Guid.NewGuid()}";
+
     protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
     {
         builder.ConfigureServices(services =>
@@ -25,9 +28,8 @@ public class ExpensesTestFixture : WebApplicationFactory<Program>
                 d => d.ServiceType == typeof(DbContextOptions<FinFlowDbContext>));
             if (descriptor != null) services.Remove(descriptor);
 
-            // テストごとに一意なDB名を使用してテスト間の干渉を防ぐ
             services.AddDbContext<FinFlowDbContext>(options =>
-                options.UseInMemoryDatabase($"FinFlowExpensesTest_{Guid.NewGuid()}"));
+                options.UseInMemoryDatabase(_dbName));
         });
     }
 
