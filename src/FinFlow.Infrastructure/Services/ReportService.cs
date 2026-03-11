@@ -42,38 +42,6 @@ public class ReportService : IReportService
         return BuildCategoryBreakdown(expenses, totalAmount);
     }
 
-    public async Task<DashboardSummaryDto> GetDashboardSummaryAsync(string userId)
-    {
-        var today = DateTime.UtcNow;
-        var currentYear = today.Year;
-        var currentMonth = today.Month;
-
-        var currentMonthExpenses = await FetchExpensesForMonthAsync(userId, currentYear, currentMonth);
-        var currentMonthTotal = currentMonthExpenses.Sum(e => e.Amount);
-
-        var (previousYear, previousMonth) = GetPreviousYearMonth(currentYear, currentMonth);
-        var previousMonthExpenses = await FetchExpensesForMonthAsync(userId, previousYear, previousMonth);
-        var previousMonthTotal = previousMonthExpenses.Sum(e => e.Amount);
-
-        var monthOverMonthChange = previousMonthTotal == 0m
-            ? 0m
-            : Math.Round((currentMonthTotal - previousMonthTotal) / previousMonthTotal * 100m, 1, MidpointRounding.AwayFromZero);
-
-        var topCategories = currentMonthExpenses.Count > 0
-            ? BuildCategoryBreakdown(currentMonthExpenses, currentMonthTotal).Take(5)
-            : Enumerable.Empty<CategoryBreakdownDto>();
-
-        var recentExpenses = await FetchRecentExpensesAsync(userId, count: 5);
-
-        return new DashboardSummaryDto(
-            currentMonthTotal,
-            previousMonthTotal,
-            monthOverMonthChange,
-            topCategories,
-            recentExpenses
-        );
-    }
-
     // クライアントの円グラフ表示のため、金額降順でカテゴリ別内訳を返す
     private static IEnumerable<CategoryBreakdownDto> BuildCategoryBreakdown(
         List<ExpenseWithCategory> expenses,

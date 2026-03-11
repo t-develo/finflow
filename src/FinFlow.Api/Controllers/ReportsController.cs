@@ -32,7 +32,7 @@ public class ReportsController : ControllerBase
         var report = await _reportService.GetMonthlyReportAsync(userId, year, month);
 
         var daysInMonth = DateTime.DaysInMonth(year, month);
-        var dailyAverage = report.ExpenseCount == 0
+        var dailyAverage = report.TotalAmount == 0m
             ? 0m
             : Math.Round(report.TotalAmount / daysInMonth, 0, MidpointRounding.AwayFromZero);
 

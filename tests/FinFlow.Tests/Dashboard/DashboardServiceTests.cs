@@ -17,6 +17,7 @@ public class DashboardServiceTests : IDisposable
     private readonly DashboardService _dashboardService;
     private readonly ReportService _reportService;
     private readonly SubscriptionService _subscriptionService;
+    private readonly ExpenseService _expenseService;
     private const string TestUserId = "user-dashboard-test";
 
     public DashboardServiceTests()
@@ -27,7 +28,8 @@ public class DashboardServiceTests : IDisposable
         _context = new FinFlowDbContext(options);
         _reportService = new ReportService(_context);
         _subscriptionService = new SubscriptionService(_context);
-        _dashboardService = new DashboardService(_reportService, _subscriptionService, _context);
+        _expenseService = new ExpenseService(_context);
+        _dashboardService = new DashboardService(_reportService, _subscriptionService, _expenseService);
     }
 
     public void Dispose() => _context.Dispose();

@@ -2,6 +2,7 @@ using System.Security.Claims;
 using FinFlow.Api.Models;
 using FinFlow.Domain.Entities;
 using FinFlow.Domain.Interfaces;
+using FinFlow.Infrastructure.Services.CsvParsing;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -13,10 +14,12 @@ namespace FinFlow.Api.Controllers;
 public class ExpensesController : ControllerBase
 {
     private readonly IExpenseService _expenseService;
+    private readonly CsvParserFactory _csvParserFactory;
 
-    public ExpensesController(IExpenseService expenseService)
+    public ExpensesController(IExpenseService expenseService, CsvParserFactory csvParserFactory)
     {
         _expenseService = expenseService;
+        _csvParserFactory = csvParserFactory;
     }
 
     [HttpGet]
@@ -94,6 +97,40 @@ public class ExpensesController : ControllerBase
             return NotFound(new { error = $"Expense with ID {id} was not found." });
 
         return NoContent();
+    }
+
+    [HttpPost("import")]
+    public async Task<IActionResult> ImportExpenses(
+        IFormFile file,
+        [FromQuery] string? bankFormat = null)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest(new { error = "No file uploaded." });
+
+        var userId = GetCurrentUserId();
+
+        using var stream = file.OpenReadStream();
+        var parser = _csvParserFactory.SelectParser(stream, "utf-8");
+        var parseResults = parser.Parse(stream, "utf-8").ToList();
+
+        var expenses = parseResults
+            .Where(r => r.IsSuccess && r.Expense != null)
+            .Select(r => r.Expense!)
+            .ToList();
+
+        var parseErrors = parseResults
+            .Where(r => !r.IsSuccess)
+            .Select(r => r.ErrorMessage ?? $"Row {r.RowNumber}: unknown error")
+            .ToList();
+
+        var result = await _expenseService.ImportExpensesAsync(expenses, userId);
+
+        return Ok(new
+        {
+            imported = result.Imported,
+            skipped = result.Skipped + parseErrors.Count,
+            errors = parseErrors.Concat(result.Errors).ToList()
+        });
     }
 
     private string GetCurrentUserId()

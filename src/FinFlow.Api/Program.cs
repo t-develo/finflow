@@ -4,6 +4,7 @@ using FinFlow.Domain.Interfaces;
 using FinFlow.Infrastructure.Data;
 using FinFlow.Infrastructure.Identity;
 using FinFlow.Infrastructure.Services;
+using FinFlow.Infrastructure.Services.CsvParsing;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -92,6 +93,10 @@ builder.Services.AddSwaggerGen(c =>
 // SE-A 担当サービス（S1-A-001〜S1-A-004）
 builder.Services.AddScoped<IExpenseService, ExpenseService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
+
+// CSV Parsing (adapter pattern: add bank-specific parsers here as ICsvParser)
+builder.Services.AddScoped<ICsvParser, GenericCsvParser>();
+builder.Services.AddScoped<CsvParserFactory>();
 
 // SE-B 担当サービス（S1-B-001〜S1-B-004）
 builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();

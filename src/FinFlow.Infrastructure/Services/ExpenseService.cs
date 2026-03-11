@@ -94,21 +94,37 @@ public class ExpenseService : IExpenseService
         return true;
     }
 
-    public async Task<int> ImportExpensesAsync(IEnumerable<Expense> expenses, string userId)
+    public async Task<ImportExpensesResult> ImportExpensesAsync(IEnumerable<Expense> expenses, string userId)
     {
         var now = DateTime.UtcNow;
         var expenseList = expenses.ToList();
+        var validExpenses = new List<Expense>();
+        var errors = new List<string>();
 
         foreach (var expense in expenseList)
         {
-            expense.UserId = userId;
-            expense.CreatedAt = now;
-            expense.UpdatedAt = now;
+            try
+            {
+                await ValidateCategoryExistsAsync(expense.CategoryId, userId);
+                expense.UserId = userId;
+                expense.CreatedAt = now;
+                expense.UpdatedAt = now;
+                validExpenses.Add(expense);
+            }
+            catch (ValidationException ex)
+            {
+                errors.Add(ex.Message);
+            }
         }
 
-        _dbContext.Expenses.AddRange(expenseList);
+        _dbContext.Expenses.AddRange(validExpenses);
         await _dbContext.SaveChangesAsync();
-        return expenseList.Count;
+        return new ImportExpensesResult
+        {
+            Imported = validExpenses.Count,
+            Skipped = errors.Count,
+            Errors = errors
+        };
     }
 
     private IQueryable<Expense> ApplyFilter(IQueryable<Expense> query, ExpenseFilter filter)
@@ -130,6 +146,10 @@ public class ExpenseService : IExpenseService
 
         if (!string.IsNullOrWhiteSpace(filter.Keyword))
             query = query.Where(e => e.Description != null && e.Description.Contains(filter.Keyword));
+
+        var page = filter.Page > 0 ? filter.Page : 1;
+        var pageSize = filter.PageSize > 0 ? filter.PageSize : 50;
+        query = query.Skip((page - 1) * pageSize).Take(pageSize);
 
         return query;
     }

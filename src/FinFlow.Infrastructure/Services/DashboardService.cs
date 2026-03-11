@@ -1,6 +1,4 @@
 using FinFlow.Domain.Interfaces;
-using FinFlow.Infrastructure.Data;
-using Microsoft.EntityFrameworkCore;
 
 namespace FinFlow.Infrastructure.Services;
 
@@ -11,16 +9,16 @@ public class DashboardService : IDashboardService
 {
     private readonly IReportService _reportService;
     private readonly ISubscriptionService _subscriptionService;
-    private readonly FinFlowDbContext _context;
+    private readonly IExpenseService _expenseService;
 
     public DashboardService(
         IReportService reportService,
         ISubscriptionService subscriptionService,
-        FinFlowDbContext context)
+        IExpenseService expenseService)
     {
         _reportService = reportService;
         _subscriptionService = subscriptionService;
-        _context = context;
+        _expenseService = expenseService;
     }
 
     public async Task<DashboardSummaryResponseDto> GetDashboardSummaryAsync(string userId)
@@ -87,39 +85,28 @@ public class DashboardService : IDashboardService
 
     private async Task<IEnumerable<RecentExpenseSummaryDto>> FetchRecentExpensesAsync(string userId, int count)
     {
-        return await _context.Expenses
-            .Where(e => e.UserId == userId)
-            .OrderByDescending(e => e.Date)
-            .Take(count)
-            .Select(e => new RecentExpenseSummaryDto(
-                e.Id,
-                e.Amount,
-                e.Category != null ? e.Category.Name : null,
-                e.Description,
-                e.Date
-            ))
-            .ToListAsync();
+        var expenses = await _expenseService.GetExpensesAsync(userId, new ExpenseFilter { Page = 1, PageSize = count });
+        return expenses.Select(e => new RecentExpenseSummaryDto(
+            e.Id,
+            e.Amount,
+            e.Category?.Name,
+            e.Description,
+            e.Date
+        ));
     }
 
     private async Task<IEnumerable<UpcomingSubscriptionDto>> FetchUpcomingSubscriptionsAsync(string userId, int daysAhead)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var cutoffDate = today.AddDays(daysAhead);
+        var subscriptions = await _subscriptionService.GetUpcomingBillingsAsync(userId, daysAhead);
 
-        return await _context.Subscriptions
-            .Where(s => s.UserId == userId
-                && s.IsActive
-                && s.NextBillingDate >= today
-                && s.NextBillingDate <= cutoffDate)
-            .OrderBy(s => s.NextBillingDate)
-            .Select(s => new UpcomingSubscriptionDto(
-                s.Id,
-                s.ServiceName,
-                s.Amount,
-                s.NextBillingDate,
-                s.NextBillingDate.DayNumber - today.DayNumber
-            ))
-            .ToListAsync();
+        return subscriptions.Select(s => new UpcomingSubscriptionDto(
+            s.Id,
+            s.ServiceName,
+            s.Amount,
+            s.NextBillingDate,
+            s.NextBillingDate.DayNumber - today.DayNumber
+        ));
     }
 
     private static (int year, int month) GetPreviousYearMonth(int year, int month)
