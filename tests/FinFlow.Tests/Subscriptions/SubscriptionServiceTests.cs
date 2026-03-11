@@ -292,6 +292,47 @@ public class SubscriptionServiceTests : IDisposable
         deleted.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task UpdateSubscriptionAsync_WithDifferentUser_ReturnsNull()
+    {
+        // Arrange: 別ユーザーのサブスクは更新できない（UserId分離の確認）
+        var subscription = CreateSubscription(OtherUserId, "Netflix", 1490m, new DateOnly(2026, 4, 1));
+        _dbContext.Subscriptions.Add(subscription);
+        await _dbContext.SaveChangesAsync();
+
+        var updatedData = new Subscription
+        {
+            ServiceName = "Netflix Premium",
+            Amount = 1980m,
+            BillingCycle = "monthly",
+            NextBillingDate = new DateOnly(2026, 5, 1),
+            IsActive = true
+        };
+
+        // Act
+        var result = await _service.UpdateSubscriptionAsync(subscription.Id, TestUserId, updatedData);
+
+        // Assert
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task DeleteSubscriptionAsync_WithDifferentUser_ReturnsFalse()
+    {
+        // Arrange: 別ユーザーのサブスクは削除できない（UserId分離の確認）
+        var subscription = CreateSubscription(OtherUserId, "Netflix", 1490m, new DateOnly(2026, 4, 1));
+        _dbContext.Subscriptions.Add(subscription);
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        var deleted = await _service.DeleteSubscriptionAsync(subscription.Id, TestUserId);
+
+        // Assert
+        deleted.Should().BeFalse();
+        var found = await _dbContext.Subscriptions.FindAsync(subscription.Id);
+        found.Should().NotBeNull();
+    }
+
     // =====================================================================
     // GetUpcomingBillingsAsync のテスト
     // =====================================================================
