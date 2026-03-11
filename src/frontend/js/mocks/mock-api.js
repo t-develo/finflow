@@ -65,7 +65,11 @@ export const mockAuthApi = {
     if (!name || !email || !password) {
       throw { status: 400, message: '全ての必須フィールドを入力してください' };
     }
-    return { message: '登録が完了しました。ログインしてください。' };
+    const user = { id: Date.now(), name, email };
+    return {
+      token: generateMockToken(user),
+      user,
+    };
   },
 };
 
