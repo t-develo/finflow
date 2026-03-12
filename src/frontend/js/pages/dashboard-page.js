@@ -1,22 +1,25 @@
 /**
- * dashboard-page.js - Dashboard screen
+ * dashboard-page.js - Dashboard screen (Sprint 2: Real API + Chart.js graphs)
  *
  * Route: /
  *
  * Features:
  *  - Monthly total and month-over-month change summary cards
- *  - Top category breakdown list with percentage bars
+ *  - Doughnut chart (Chart.js) for category breakdown
  *  - Recent expenses table (last 5 entries)
+ *  - PDF report download link
  *
- * API (mock in Sprint 1):
+ * API:
  *   GET /api/dashboard/summary
+ *   GET /api/reports/by-category?year=YYYY&month=MM
  */
 
-import { mockDashboardApi } from '../mocks/mock-api.js';
+import { api } from '../utils/api-client.js';
 import { router } from '../router.js';
 import { formatCurrency, formatDate } from '../utils/format.js';
 
-const dashboardApi = mockDashboardApi;
+// Chart.js インスタンスの参照（ページ再レンダリング時に破棄するため）
+let categoryChart = null;
 
 // ---------------------------------------------------------------------------
 // Render entry point
@@ -33,11 +36,23 @@ export async function renderDashboardPage(container) {
 
   contentArea.innerHTML = `<div class="loading">読み込み中...</div>`;
 
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+
   try {
-    const summary = await dashboardApi.getSummary();
-    contentArea.innerHTML = buildHtml(summary);
+    // ダッシュボードサマリと月次カテゴリ内訳を並行取得
+    const [summary, categoryReport] = await Promise.all([
+      api.get('/dashboard/summary'),
+      api.get(`/reports/by-category?year=${year}&month=${month}`)
+    ]);
+
+    contentArea.innerHTML = buildHtml(summary, year, month);
     attachEventListeners(contentArea);
-  } catch {
+
+    // Chart.js グラフの描画（非同期で動的インポート）
+    await renderCategoryChart(contentArea, categoryReport.categories ?? []);
+  } catch (err) {
     contentArea.innerHTML = `
       <div class="alert alert--error">
         データの読み込みに失敗しました。再読み込みしてください。
@@ -64,9 +79,7 @@ function buildShell() {
 // Dashboard HTML
 // ---------------------------------------------------------------------------
 
-function buildHtml(summary) {
-  // Coerce to Number and format to 1 decimal place to guard against
-  // non-numeric values being injected into innerHTML via template literals.
+function buildHtml(summary, year, month) {
   const changeValue = Number(summary.monthOverMonthChange).toFixed(1);
   const isIncrease = Number(summary.monthOverMonthChange) >= 0;
   const changeSign = isIncrease ? '+' : '';
@@ -88,14 +101,29 @@ function buildHtml(summary) {
       <div class="card dashboard-card">
         <div class="dashboard-card__label">先月の支出</div>
         <div class="dashboard-card__value">${formatCurrency(summary.previousMonthTotal)}</div>
+        <div class="dashboard-card__footer">
+          <a href="/reports/monthly/pdf?year=${year}&month=${month}"
+             class="btn btn--secondary btn--sm"
+             id="pdf-download-btn"
+             aria-label="${year}年${month}月のPDFレポートをダウンロード">
+            PDFレポート
+          </a>
+        </div>
       </div>
 
-      <!-- Top categories -->
+      <!-- Category chart (Chart.js) -->
       <div class="card dashboard-card--wide">
-        <h2 class="card__title">カテゴリ別内訳</h2>
-        <ul class="category-breakdown" aria-label="カテゴリ別支出内訳">
-          ${summary.topCategories.map(buildCategoryRow).join('')}
-        </ul>
+        <h2 class="card__title">カテゴリ別内訳（${year}年${month}月）</h2>
+        <div class="dashboard-chart">
+          <canvas id="category-chart"
+                  aria-label="カテゴリ別支出の円グラフ"
+                  role="img"
+                  width="320"
+                  height="320"></canvas>
+          <div id="chart-legend" class="dashboard-chart__legend" aria-label="カテゴリ凡例">
+            <!-- Populated by renderCategoryChart -->
+          </div>
+        </div>
       </div>
 
       <!-- Recent expenses -->
@@ -107,29 +135,117 @@ function buildHtml(summary) {
   `;
 }
 
-function buildCategoryRow(cat) {
-  // Coerce percentage to a number to prevent non-numeric values from being
-  // embedded into innerHTML via template literals.
-  const pct = Number(cat.percentage).toFixed(1);
-  const color = escapeHtml(cat.categoryColor || '#6B7280');
-  const name = escapeHtml(cat.categoryName || '不明');
+// ---------------------------------------------------------------------------
+// Chart.js グラフ描画
+// ---------------------------------------------------------------------------
 
-  return `
-    <li class="category-breakdown__item">
-      <span class="category-breakdown__dot"
-            style="background-color: ${color};"
-            aria-hidden="true"></span>
-      <span class="category-breakdown__name">${name}</span>
-      <div class="category-breakdown__bar-wrap" role="progressbar"
-           aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100">
-        <div class="category-breakdown__bar"
-             style="width: ${pct}%; background-color: ${color};"></div>
+/**
+ * Chart.js をCDN経由で動的インポートしてドーナツグラフを描画する。
+ * @param {HTMLElement} contentArea
+ * @param {Array} categories
+ */
+async function renderCategoryChart(contentArea, categories) {
+  // Chart.js をグローバル変数として使用（CDN経由でindex.htmlに読み込み済み）
+  const Chart = window.Chart;
+  if (!Chart) {
+    // Chart.js が読み込まれていない場合はリスト表示にフォールバック
+    renderCategoryListFallback(contentArea, categories);
+    return;
+  }
+
+  const canvas = contentArea.querySelector('#category-chart');
+  if (!canvas) return;
+
+  // 既存チャートを破棄（ページ再レンダリング対応）
+  if (categoryChart) {
+    categoryChart.destroy();
+    categoryChart = null;
+  }
+
+  if (!categories || categories.length === 0) {
+    canvas.parentElement.innerHTML = `<p class="empty-state__message">今月のデータがありません</p>`;
+    return;
+  }
+
+  const labels = categories.map(c => c.categoryName ?? '不明');
+  const data = categories.map(c => Number(c.totalAmount));
+  const colors = categories.map(c => c.categoryColor ?? '#6B7280');
+
+  categoryChart = new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: colors,
+        borderWidth: 2,
+        borderColor: '#ffffff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: {
+          display: false // カスタム凡例を使用
+        },
+        tooltip: {
+          callbacks: {
+            label: (context) => {
+              const value = context.parsed;
+              const total = context.dataset.data.reduce((a, b) => a + b, 0);
+              const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
+              return ` ${formatCurrency(value)} (${pct}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+
+  // カスタム凡例を構築（Screen Reader対応）
+  const legendEl = contentArea.querySelector('#chart-legend');
+  if (legendEl) {
+    legendEl.innerHTML = categories.map(cat => `
+      <div class="dashboard-chart__legend-item">
+        <span class="dashboard-chart__legend-dot"
+              style="background-color: ${escapeHtml(cat.categoryColor ?? '#6B7280')};"
+              aria-hidden="true"></span>
+        <span class="dashboard-chart__legend-name">${escapeHtml(cat.categoryName ?? '不明')}</span>
+        <span class="dashboard-chart__legend-amount">${formatCurrency(cat.totalAmount)}</span>
+        <span class="dashboard-chart__legend-pct">${Number(cat.percentage).toFixed(1)}%</span>
       </div>
-      <span class="category-breakdown__pct">${pct}%</span>
-      <span class="category-breakdown__amount">${formatCurrency(cat.totalAmount)}</span>
-    </li>
-  `;
+    `).join('');
+  }
 }
+
+/**
+ * Chart.js が使えない場合のリスト表示フォールバック
+ */
+function renderCategoryListFallback(contentArea, categories) {
+  const chartArea = contentArea.querySelector('.dashboard-chart');
+  if (!chartArea) return;
+
+  const items = categories.map(cat => {
+    const pct = Number(cat.percentage).toFixed(1);
+    const color = escapeHtml(cat.categoryColor ?? '#6B7280');
+    const name = escapeHtml(cat.categoryName ?? '不明');
+    return `
+      <li class="category-breakdown__item">
+        <span class="category-breakdown__dot" style="background-color: ${color};" aria-hidden="true"></span>
+        <span class="category-breakdown__name">${name}</span>
+        <span class="category-breakdown__pct">${pct}%</span>
+        <span class="category-breakdown__amount">${formatCurrency(cat.totalAmount)}</span>
+      </li>
+    `;
+  }).join('');
+
+  chartArea.innerHTML = `<ul class="category-breakdown" aria-label="カテゴリ別支出内訳">${items}</ul>`;
+}
+
+// ---------------------------------------------------------------------------
+// Recent expenses table
+// ---------------------------------------------------------------------------
 
 function buildRecentExpensesTable(expenses) {
   if (!expenses || expenses.length === 0) {
@@ -142,10 +258,10 @@ function buildRecentExpensesTable(expenses) {
         data-id="${expense.id}"
         style="cursor: pointer;"
         tabindex="0"
-        aria-label="${escapeHtml(expense.description)} ${formatCurrency(expense.amount)}">
+        aria-label="${escapeHtml(expense.description ?? '')} ${formatCurrency(expense.amount)}">
       <td class="table__cell table__cell--muted">${escapeHtml(formatDate(expense.date))}</td>
-      <td class="table__cell">${escapeHtml(expense.categoryName || '不明')}</td>
-      <td class="table__cell">${escapeHtml(expense.description)}</td>
+      <td class="table__cell">${escapeHtml(expense.categoryName ?? '不明')}</td>
+      <td class="table__cell">${escapeHtml(expense.description ?? '')}</td>
       <td class="table__cell table__cell--amount">${escapeHtml(formatCurrency(expense.amount))}</td>
     </tr>
   `).join('');
@@ -176,6 +292,16 @@ function buildRecentExpensesTable(expenses) {
 
 function attachEventListeners(contentArea) {
   contentArea.addEventListener('click', (e) => {
+    // PDF download
+    const pdfBtn = e.target.closest('#pdf-download-btn');
+    if (pdfBtn) {
+      e.preventDefault();
+      const href = pdfBtn.getAttribute('href');
+      if (href) window.open(`/api/reports${href.replace('/reports', '')}`, '_blank');
+      return;
+    }
+
+    // Navigate to expense
     const row = e.target.closest('[data-action="navigate-expense"]');
     if (!row) return;
     const id = row.getAttribute('data-id');

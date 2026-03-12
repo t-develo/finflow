@@ -11,10 +11,12 @@ namespace FinFlow.Api.Controllers;
 public class ReportsController : ControllerBase
 {
     private readonly IReportService _reportService;
+    private readonly IPdfReportGenerator _pdfReportGenerator;
 
-    public ReportsController(IReportService reportService)
+    public ReportsController(IReportService reportService, IPdfReportGenerator pdfReportGenerator)
     {
         _reportService = reportService;
+        _pdfReportGenerator = pdfReportGenerator;
     }
 
     private string GetUserId() =>
@@ -78,6 +80,21 @@ public class ReportsController : ControllerBase
         );
 
         return Ok(response);
+    }
+
+    /// <summary>月次レポートをPDF形式でダウンロードする</summary>
+    [HttpGet("monthly/pdf")]
+    public async Task<IActionResult> GetMonthlyReportPdf([FromQuery] int year, [FromQuery] int month)
+    {
+        if (!IsValidYearMonth(year, month))
+            return BadRequest("year は 2000〜2099、month は 1〜12 の範囲で指定してください。");
+
+        var userId = GetUserId();
+        var report = await _reportService.GetMonthlyReportAsync(userId, year, month);
+        var pdfBytes = await _pdfReportGenerator.GenerateMonthlyReportAsync(report);
+
+        var fileName = $"finflow-report-{year}-{month:D2}.pdf";
+        return File(pdfBytes, "application/pdf", fileName);
     }
 
     private static bool IsValidYearMonth(int year, int month) =>
