@@ -94,14 +94,26 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddScoped<IExpenseService, ExpenseService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 
-// CSV Parsing (adapter pattern: add bank-specific parsers here as ICsvParser)
+// CSV Parsing (adapter pattern: bank-specific parsers registered as ICsvParser)
+// Sprint 2: MufgCsvParser and RakutenCsvParser added (S2-A-002)
 builder.Services.AddScoped<ICsvParser, GenericCsvParser>();
+builder.Services.AddScoped<ICsvParser, MufgCsvParser>();
+builder.Services.AddScoped<ICsvParser, RakutenCsvParser>();
 builder.Services.AddScoped<CsvParserFactory>();
+
+// SE-A Sprint 2 サービス
+builder.Services.AddScoped<IClassificationRuleService, ClassificationRuleService>();
+builder.Services.AddScoped<ICategoryClassifier, CategoryClassifier>();
 
 // SE-B 担当サービス（S1-B-001〜S1-B-004）
 builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+
+// SE-B Sprint 2 サービス
+builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
+builder.Services.AddScoped<IPdfReportGenerator, QuestPdfReportGenerator>();
+builder.Services.AddHostedService<NotificationScheduler>();
 
 builder.Services.AddLogging();
 

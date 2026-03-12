@@ -94,8 +94,11 @@ public class ExpensesControllerTests : IClassFixture<ExpensesTestFixture>
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadAsStringAsync();
-        var expenses = JsonSerializer.Deserialize<List<JsonElement>>(body, JsonOptions);
-        expenses.Should().NotBeNull();
+        // S2-A-004: レスポンス形式が { data: [...], pagination: {...} } に変更された
+        var result = JsonSerializer.Deserialize<JsonElement>(body, JsonOptions);
+        result.TryGetProperty("data", out var dataElement).Should().BeTrue("response should have 'data' property");
+        dataElement.ValueKind.Should().Be(JsonValueKind.Array);
+        result.TryGetProperty("pagination", out var paginationElement).Should().BeTrue("response should have 'pagination' property");
     }
 
     // =====================================================================

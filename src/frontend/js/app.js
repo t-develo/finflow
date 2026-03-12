@@ -1,42 +1,47 @@
 import { router } from './router.js';
 import { auth } from './utils/auth.js';
 
-// Pages (will be implemented by SE-C in Sprint 1)
-async function loadPage(name) {
-  const module = await import(`./pages/${name}.js`);
-  return module.default;
-}
+// Sprint 2: 各ページを直接インポート（Named exports）
+import { renderDashboardPage } from './pages/dashboard-page.js';
+import { renderCsvImportPage } from './pages/csv-import-page.js';
+import { renderSubscriptionPage } from './pages/subscription-page.js';
+import { renderCategoryPage } from './pages/category-page.js';
+
+// Sprint 1からの既存ページ（Named exports）
+import { renderLoginPage } from './pages/login-page.js';
+import { renderRegisterPage } from './pages/register-page.js';
+import { renderExpenseListPage } from './pages/expense-list-page.js';
+import { renderExpenseFormPage } from './pages/expense-form-page.js';
 
 router
-  .on('/login', async (container) => {
-    const page = await loadPage('login');
-    page(container);
+  .on('/login', (container) => {
+    renderLoginPage(container);
   })
-  .on('/register', async (container) => {
-    const page = await loadPage('register');
-    page(container);
+  .on('/register', (container) => {
+    renderRegisterPage(container);
   })
-  .on('/dashboard', async (container) => {
-    const page = await loadPage('dashboard');
-    page(container);
+  .on('/dashboard', (container) => {
+    renderDashboardPage(container);
   })
-  .on('/expenses', async (container) => {
-    const page = await loadPage('expenses');
-    page(container);
+  .on('/', (container) => {
+    renderDashboardPage(container);
   })
-  .on('/subscriptions', async (container) => {
-    const page = await loadPage('subscriptions');
-    page(container);
+  .on('/expenses', (container) => {
+    renderExpenseListPage(container);
   })
-  .on('/categories', async (container) => {
-    const page = await loadPage('categories');
-    page(container);
+  .on('/expenses/import', (container) => {
+    renderCsvImportPage(container);
   })
-  .on('/import', async (container) => {
-    const page = await loadPage('import');
-    page(container);
+  .on('/subscriptions', (container) => {
+    renderSubscriptionPage(container);
   })
-  .on('*', async (container) => {
+  .on('/categories', (container) => {
+    renderCategoryPage(container);
+  })
+  .on('/import', (container) => {
+    renderCsvImportPage(container);
+  })
+  .on('*', (container) => {
     container.innerHTML = '<div class="card"><h2>404 - ページが見つかりません</h2></div>';
   });
 

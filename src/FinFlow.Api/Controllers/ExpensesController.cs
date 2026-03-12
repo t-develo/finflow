@@ -47,7 +47,20 @@ public class ExpensesController : ControllerBase
         };
 
         var expenses = await _expenseService.GetExpensesAsync(userId, filter);
-        var response = expenses.Select(MapToResponse);
+        var expenseList = expenses.ToList();
+
+        // S2-A-004: ページネーションメタデータをレスポンスに含める
+        var response = new
+        {
+            data = expenseList.Select(MapToResponse),
+            pagination = new
+            {
+                page,
+                pageSize,
+                // 次ページの存在チェック（pageSize件返ってきた場合は次ページがある可能性あり）
+                hasNextPage = expenseList.Count == pageSize
+            }
+        };
         return Ok(response);
     }
 
