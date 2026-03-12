@@ -270,3 +270,378 @@ body {
   border: 1px solid #BBF7D0;
   color: var(--color-success);
 }
+
+/* ============================================================
+   Loading Spinner
+   ============================================================ */
+.spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+.spinner--lg {
+  width: 40px;
+  height: 40px;
+  border-width: 3px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(249, 250, 251, 0.75);
+  z-index: 500;
+  backdrop-filter: blur(1px);
+}
+
+.loading-overlay__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-md);
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+/* Inline loading state: spinner inside button */
+.btn--loading {
+  pointer-events: none;
+  opacity: 0.75;
+}
+
+.btn--loading .spinner {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+
+/* ============================================================
+   Inline validation / form error enhancements
+   ============================================================ */
+.form-group__error {
+  display: block;
+  color: var(--color-danger);
+  font-size: 0.75rem;
+  margin-top: var(--spacing-xs);
+  min-height: 1em;
+}
+
+.form-group__input--error,
+.form-input--error,
+.form__input--error {
+  border-color: var(--color-danger) !important;
+}
+
+.form-group__input--error:focus,
+.form-input--error:focus,
+.form__input--error:focus {
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+}
+
+.form-error {
+  display: block;
+  color: var(--color-danger);
+  font-size: 0.75rem;
+  margin-top: var(--spacing-xs);
+}
+
+/* ============================================================
+   Network error banner
+   ============================================================ */
+.network-error-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background-color: var(--color-danger);
+  color: #fff;
+  text-align: center;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: 0.875rem;
+  z-index: 900;
+  transform: translateY(-100%);
+  transition: transform 0.3s ease;
+}
+
+.network-error-banner--visible {
+  transform: translateY(0);
+}
+
+/* ============================================================
+   Table container (horizontal scroll on small screens)
+   ============================================================ */
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ============================================================
+   Hamburger menu button (mobile only, hidden on desktop)
+   ============================================================ */
+.hamburger-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: var(--border-radius);
+  color: var(--color-text);
+  transition: background-color 0.2s;
+  flex-shrink: 0;
+}
+
+.hamburger-btn:hover {
+  background-color: var(--color-bg);
+}
+
+.hamburger-btn__icon {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 20px;
+  height: 14px;
+}
+
+.hamburger-btn__bar {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background-color: currentColor;
+  border-radius: 1px;
+  transition: all 0.25s ease;
+}
+
+/* Animated X when menu is open */
+.hamburger-btn--open .hamburger-btn__bar:nth-child(1) {
+  transform: translateY(6px) rotate(45deg);
+}
+.hamburger-btn--open .hamburger-btn__bar:nth-child(2) {
+  opacity: 0;
+  transform: scaleX(0);
+}
+.hamburger-btn--open .hamburger-btn__bar:nth-child(3) {
+  transform: translateY(-6px) rotate(-45deg);
+}
+
+/* Sidebar overlay (mobile) */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  z-index: 90;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.sidebar-overlay--visible {
+  opacity: 1;
+}
+
+/* ============================================================
+   Page layout helpers
+   ============================================================ */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
+}
+
+.page-header__title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* ============================================================
+   Responsive — Mobile breakpoint (max 768px)
+   ============================================================ */
+@media (max-width: 768px) {
+  /* Show hamburger button */
+  .hamburger-btn {
+    display: flex;
+  }
+
+  /* Sidebar: slide in from left as overlay on mobile */
+  .sidebar {
+    transform: translateX(-100%);
+  }
+
+  .sidebar.sidebar--mobile-open {
+    transform: translateX(0);
+  }
+
+  /* Auth pages: sidebar stays hidden — keep existing behaviour */
+  .sidebar--hidden {
+    transform: translateX(-100%);
+  }
+
+  /* Show the dim overlay when sidebar is open */
+  .sidebar-overlay {
+    display: block;
+  }
+
+  /* Main content: no left margin on mobile */
+  .main-content {
+    margin-left: 0;
+    padding: var(--spacing-md);
+  }
+
+  .main-content--full {
+    margin-left: 0;
+  }
+
+  /* Tables: card-style layout on mobile */
+  .table,
+  .table thead,
+  .table tbody,
+  .table th,
+  .table td,
+  .table tr {
+    display: block;
+  }
+
+  .table thead {
+    /* Hide header row visually but keep accessible */
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .table__row {
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    margin-bottom: var(--spacing-sm);
+    background-color: var(--color-surface);
+    padding: var(--spacing-sm);
+  }
+
+  .table__row:hover td,
+  .table__row:hover {
+    background-color: var(--color-surface);
+  }
+
+  .table td,
+  .table__cell {
+    border-bottom: none;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: 0.875rem;
+  }
+
+  /* Show column labels from data-label attribute */
+  .table td[data-label]::before,
+  .table__cell[data-label]::before {
+    content: attr(data-label) ": ";
+    font-weight: 600;
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+    flex-shrink: 0;
+    min-width: 4em;
+  }
+
+  /* Amount cell: right-align */
+  .table__cell--amount {
+    justify-content: flex-start;
+  }
+
+  /* Action buttons: full row */
+  .table__actions {
+    width: 100%;
+    justify-content: flex-start;
+    gap: var(--spacing-sm);
+  }
+
+  /* Forms: larger touch targets */
+  .form-group input,
+  .form-group select,
+  .form-group textarea,
+  .form-input,
+  .form__input,
+  .form__select,
+  .form__textarea {
+    min-height: 44px;
+    font-size: 1rem;
+  }
+
+  .btn {
+    min-height: 44px;
+    font-size: 0.9375rem;
+  }
+
+  .btn--sm {
+    min-height: 36px;
+    font-size: 0.875rem;
+  }
+
+  /* Form actions: stack vertically */
+  .form-actions {
+    flex-direction: column;
+  }
+
+  /* Page header: let title wrap */
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  /* Dashboard grid: single column */
+  .dashboard-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Modal: full screen on mobile */
+  .modal__dialog {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    min-height: 100vh;
+  }
+
+  /* Filter bar: wrap */
+  .filter-bar {
+    flex-wrap: wrap;
+  }
+}
+
+/* ============================================================
+   Responsive — Small mobile (max 480px)
+   ============================================================ */
+@media (max-width: 480px) {
+  .main-content {
+    padding: var(--spacing-sm);
+  }
+
+  .card {
+    padding: var(--spacing-md);
+  }
+
+  .page-header__title {
+    font-size: 1.25rem;
+  }
+}

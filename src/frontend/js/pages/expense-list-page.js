@@ -12,20 +12,37 @@
  *  - Total amount and count summary
  *  - Empty state message when no data
  *
- * API (mock in Sprint 1):
+ * API:
  *   GET    /api/expenses?year=&month=&categoryId=&page=&pageSize=
  *   GET    /api/categories
  *   DELETE /api/expenses/:id
  */
 
-import { mockExpensesApi, mockCategoriesApi } from '../mocks/mock-api.js';
+import { api } from '../utils/api-client.js';
 import { router } from '../router.js';
 import { toast } from '../components/ff-toast.js';
 import { confirmDialog } from '../components/ff-confirm-dialog.js';
 import { formatCurrency, formatDate, currentYearMonth, parseYearMonth } from '../utils/format.js';
 
-const expensesApi = mockExpensesApi;
-const categoriesApi = mockCategoriesApi;
+/**
+ * Thin adapters keeping the same call signatures as the former mock API.
+ * All requests are delegated to the real api-client.
+ */
+const expensesApi = {
+  getList: ({ year, month, categoryId, page, pageSize }) => {
+    const params = new URLSearchParams({ year, month, page, pageSize });
+    if (categoryId && String(categoryId) !== '0') params.set('categoryId', categoryId);
+    return api.get(`/expenses?${params}`);
+  },
+  getById: (id) => api.get(`/expenses/${id}`),
+  create: (payload) => api.post('/expenses', payload),
+  update: (id, payload) => api.put(`/expenses/${id}`, payload),
+  remove: (id) => api.delete(`/expenses/${id}`),
+};
+
+const categoriesApi = {
+  getAll: () => api.get('/categories'),
+};
 
 const PAGE_SIZE = 20;
 
@@ -223,7 +240,7 @@ function buildExpenseRow(expense) {
             class="table__action-btn table__action-btn--danger"
             data-action="delete"
             data-id="${expense.id}"
-            data-description="${expense.description}"
+            data-description="${escapeHtml(expense.description)}"
             aria-label="削除: ${escapeHtml(expense.description)}"
             title="削除"
           >🗑️</button>
