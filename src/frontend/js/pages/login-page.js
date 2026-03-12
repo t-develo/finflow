@@ -9,12 +9,13 @@
  */
 
 import { auth } from '../utils/auth.js';
-import { mockAuthApi } from '../mocks/mock-api.js';
+import { api } from '../utils/api-client.js';
 import { router } from '../router.js';
 import { toast } from '../components/ff-toast.js';
 
-// Toggle between mock and real API by changing this import in Sprint 2:
-const authApi = mockAuthApi;
+const authApi = {
+  login: (payload) => api.post('/auth/login', payload, { showLoader: true }),
+};
 
 /** Validation rules */
 function validateLoginForm({ email, password }) {

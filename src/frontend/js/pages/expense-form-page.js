@@ -12,19 +12,29 @@
  *  - Edit:   GET /api/expenses/:id (prefill) + PUT /api/expenses/:id
  *  - Toast notification on success, redirect to /expenses
  *
- * API (mock in Sprint 1):
+ * API:
  *   GET    /api/categories
  *   GET    /api/expenses/:id
  *   POST   /api/expenses
  *   PUT    /api/expenses/:id
  */
 
-import { mockExpensesApi, mockCategoriesApi } from '../mocks/mock-api.js';
+import { api } from '../utils/api-client.js';
 import { router } from '../router.js';
 import { toast } from '../components/ff-toast.js';
 
-const expensesApi = mockExpensesApi;
-const categoriesApi = mockCategoriesApi;
+/**
+ * Thin adapters keeping the same call signatures as the former mock API.
+ */
+const expensesApi = {
+  getById: (id) => api.get(`/expenses/${id}`),
+  create: (payload) => api.post('/expenses', payload),
+  update: (id, payload) => api.put(`/expenses/${id}`, payload),
+};
+
+const categoriesApi = {
+  getAll: () => api.get('/categories'),
+};
 
 // ---------------------------------------------------------------------------
 // Render entry point

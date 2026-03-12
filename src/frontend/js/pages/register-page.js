@@ -9,11 +9,13 @@
  */
 
 import { auth } from '../utils/auth.js';
-import { mockAuthApi } from '../mocks/mock-api.js';
+import { api } from '../utils/api-client.js';
 import { router } from '../router.js';
 import { toast } from '../components/ff-toast.js';
 
-const authApi = mockAuthApi;
+const authApi = {
+  register: (payload) => api.post('/auth/register', payload, { showLoader: true }),
+};
 
 // ---------------------------------------------------------------------------
 // Validation
