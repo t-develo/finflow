@@ -13,6 +13,18 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Security: Validate JWT key is not using the default development value in production
+var jwtKeyAtStartup = builder.Configuration["Jwt:Key"];
+if (builder.Environment.IsProduction() &&
+    (string.IsNullOrWhiteSpace(jwtKeyAtStartup) ||
+     jwtKeyAtStartup == "FinFlow-SuperSecretKey-ChangeInProduction-AtLeast32Chars!"))
+{
+    throw new InvalidOperationException(
+        "Jwt:Key must be set to a strong secret value in production. " +
+        "Set it via an environment variable: Jwt__Key=<your-secret>. " +
+        "Never use the default development key in production.");
+}
+
 // Database
 builder.Services.AddDbContext<FinFlowDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
