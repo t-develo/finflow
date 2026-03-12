@@ -44,22 +44,25 @@ public class QuestPdfReportGenerator : IPdfReportGenerator
     {
         return container =>
         {
-            container.Row(row =>
+            container.Column(col =>
             {
-                row.RelativeItem().Column(col =>
+                col.Item().Row(row =>
                 {
-                    col.Item().Text($"月次支出レポート").FontSize(20).Bold().FontColor(Colors.Blue.Medium);
-                    col.Item().Text($"{report.Year}年{report.Month}月").FontSize(14).FontColor(Colors.Grey.Medium);
+                    row.RelativeItem().Column(c =>
+                    {
+                        c.Item().Text($"月次支出レポート").FontSize(20).Bold().FontColor(Colors.Blue.Medium);
+                        c.Item().Text($"{report.Year}年{report.Month}月").FontSize(14).FontColor(Colors.Grey.Medium);
+                    });
+
+                    row.ConstantItem(150).Column(c =>
+                    {
+                        c.Item().AlignRight().Text("FinFlow").FontSize(12).Bold();
+                        c.Item().AlignRight().Text(DateTime.Now.ToString("yyyy/MM/dd")).FontSize(10).FontColor(Colors.Grey.Medium);
+                    });
                 });
 
-                row.ConstantItem(150).Column(col =>
-                {
-                    col.Item().AlignRight().Text("FinFlow").FontSize(12).Bold();
-                    col.Item().AlignRight().Text(DateTime.Now.ToString("yyyy/MM/dd")).FontSize(10).FontColor(Colors.Grey.Medium);
-                });
+                col.Item().PaddingTop(5).LineHorizontal(1).LineColor(Colors.Blue.Medium);
             });
-
-            container.PaddingTop(5).LineHorizontal(1).LineColor(Colors.Blue.Medium);
         };
     }
 
