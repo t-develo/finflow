@@ -21,6 +21,9 @@ packages/
 # Environment / secrets
 appsettings.Production.json
 *.env
+infra/scripts/.env*
+publish/
+finflow-*.zip
 
 # OS
 .DS_Store

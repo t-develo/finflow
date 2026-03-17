@@ -6,6 +6,7 @@ using FinFlow.Infrastructure.Identity;
 using FinFlow.Infrastructure.Services;
 using FinFlow.Infrastructure.Services.CsvParsing;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -134,6 +135,12 @@ var app = builder.Build();
 // Middleware
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
+// Support Azure App Service / reverse proxy forwarded headers
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -150,6 +157,13 @@ app.MapControllers();
 // Serve static frontend files
 app.UseStaticFiles();
 app.MapFallbackToFile("index.html");
+
+// Apply EF Core migrations automatically on startup
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<FinFlowDbContext>();
+    db.Database.Migrate();
+}
 
 app.Run();
 
