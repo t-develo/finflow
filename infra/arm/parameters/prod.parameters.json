@@ -6,10 +6,10 @@
       "value": "prod"
     },
     "appServicePlanSku": {
-      "value": "B1"
+      "value": "F1"
     },
     "sqlDatabaseTier": {
-      "value": "Basic"
+      "value": "Serverless"
     },
     "smtpFromName": {
       "value": "FinFlow"
