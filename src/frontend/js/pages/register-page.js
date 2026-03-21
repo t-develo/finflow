@@ -94,6 +94,8 @@ function buildHtml() {
               autocomplete="name"
               placeholder="山田 太郎"
               required
+              aria-required="true"
+              aria-describedby="reg-name-error"
             >
             <span class="form-group__error" id="reg-name-error" role="alert"></span>
           </div>
@@ -110,6 +112,8 @@ function buildHtml() {
               autocomplete="email"
               placeholder="you@example.com"
               required
+              aria-required="true"
+              aria-describedby="reg-email-error"
             >
             <span class="form-group__error" id="reg-email-error" role="alert"></span>
           </div>
@@ -126,6 +130,8 @@ function buildHtml() {
               autocomplete="new-password"
               placeholder="8文字以上"
               required
+              aria-required="true"
+              aria-describedby="reg-password-error"
             >
             <span class="form-group__error" id="reg-password-error" role="alert"></span>
           </div>
@@ -142,6 +148,8 @@ function buildHtml() {
               autocomplete="new-password"
               placeholder="もう一度入力してください"
               required
+              aria-required="true"
+              aria-describedby="reg-confirmPassword-error"
             >
             <span class="form-group__error" id="reg-confirmPassword-error" role="alert"></span>
           </div>

@@ -155,6 +155,12 @@ export const api = {
         body: formData
       });
 
+      if (res.status === 401) {
+        auth.logout();
+        window.location.href = '/login';
+        return;
+      }
+
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Upload failed' }));
         throw new ApiError(res.status, err.error || 'Upload failed');

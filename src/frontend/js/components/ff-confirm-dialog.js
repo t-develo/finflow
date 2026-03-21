@@ -84,7 +84,8 @@ class FfConfirmDialog extends HTMLElement {
     }
     if (e.key === 'Enter') {
       const confirmBtn = this.shadowRoot.querySelector('.dialog__confirm-btn');
-      if (document.activeElement !== confirmBtn) return;
+      const focusedEl = this.shadowRoot.activeElement;
+      if (focusedEl !== confirmBtn) return;
       this._closeDialog(true);
     }
   }
@@ -139,8 +140,8 @@ class FfConfirmDialog extends HTMLElement {
         }
 
         .dialog {
-          background: #ffffff;
-          border-radius: 12px;
+          background: var(--color-bg, #ffffff);
+          border-radius: var(--border-radius-lg, 12px);
           box-shadow: 0 20px 25px rgba(0, 0, 0, 0.1);
           padding: 24px;
           width: 100%;
@@ -156,17 +157,17 @@ class FfConfirmDialog extends HTMLElement {
         .dialog__title {
           font-size: 1.125rem;
           font-weight: 700;
-          color: #111827;
+          color: var(--color-text, #111827);
           margin-bottom: 12px;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          font-family: var(--font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
         }
 
         .dialog__message {
           font-size: 0.875rem;
-          color: #4B5563;
+          color: var(--color-text-secondary, #4B5563);
           line-height: 1.6;
           margin-bottom: 24px;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          font-family: var(--font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
         }
 
         .dialog__actions {
@@ -178,18 +179,18 @@ class FfConfirmDialog extends HTMLElement {
         .dialog__cancel-btn,
         .dialog__confirm-btn {
           padding: 8px 20px;
-          border-radius: 8px;
+          border-radius: var(--border-radius, 8px);
           font-size: 0.875rem;
           font-weight: 500;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          font-family: var(--font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
           cursor: pointer;
           transition: all 200ms ease;
         }
 
         .dialog__cancel-btn {
           background: #ffffff;
-          border: 1px solid #E5E7EB;
-          color: #374151;
+          border: 1px solid var(--color-border, #E5E7EB);
+          color: var(--color-text, #374151);
         }
 
         .dialog__cancel-btn:hover {
@@ -197,8 +198,8 @@ class FfConfirmDialog extends HTMLElement {
         }
 
         .dialog__confirm-btn {
-          background-color: #3B82F6;
-          border: 1px solid #3B82F6;
+          background-color: var(--color-primary, #3B82F6);
+          border: 1px solid var(--color-primary, #3B82F6);
           color: #ffffff;
         }
 
@@ -219,7 +220,7 @@ class FfConfirmDialog extends HTMLElement {
 
         .dialog__cancel-btn:focus,
         .dialog__confirm-btn:focus {
-          outline: 2px solid #3B82F6;
+          outline: 2px solid var(--color-primary, #3B82F6);
           outline-offset: 2px;
         }
       </style>

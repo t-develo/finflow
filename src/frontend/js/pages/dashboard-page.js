@@ -16,7 +16,7 @@
 
 import { api } from '../utils/api-client.js';
 import { router } from '../router.js';
-import { formatCurrency, formatDate } from '../utils/format.js';
+import { formatCurrency, formatDate, escapeHtml, sanitizeColor } from '../utils/format.js';
 
 // Chart.js インスタンスの参照（ページ再レンダリング時に破棄するため）
 let categoryChart = null;
@@ -209,7 +209,7 @@ async function renderCategoryChart(contentArea, categories) {
     legendEl.innerHTML = categories.map(cat => `
       <div class="dashboard-chart__legend-item">
         <span class="dashboard-chart__legend-dot"
-              style="background-color: ${escapeHtml(cat.categoryColor ?? '#6B7280')};"
+              style="background-color: ${sanitizeColor(cat.categoryColor)};"
               aria-hidden="true"></span>
         <span class="dashboard-chart__legend-name">${escapeHtml(cat.categoryName ?? '不明')}</span>
         <span class="dashboard-chart__legend-amount">${formatCurrency(cat.totalAmount)}</span>
@@ -228,7 +228,7 @@ function renderCategoryListFallback(contentArea, categories) {
 
   const items = categories.map(cat => {
     const pct = Number(cat.percentage).toFixed(1);
-    const color = escapeHtml(cat.categoryColor ?? '#6B7280');
+    const color = sanitizeColor(cat.categoryColor);
     const name = escapeHtml(cat.categoryName ?? '不明');
     return `
       <li class="category-breakdown__item">
@@ -319,12 +319,4 @@ function attachEventListeners(contentArea) {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Utility
-// ---------------------------------------------------------------------------
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = String(text ?? '');
-  return div.innerHTML;
-}
+// escapeHtml and sanitizeColor imported from format.js

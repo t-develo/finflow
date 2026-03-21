@@ -22,7 +22,7 @@ import { api } from '../utils/api-client.js';
 import { router } from '../router.js';
 import { toast } from '../components/ff-toast.js';
 import { confirmDialog } from '../components/ff-confirm-dialog.js';
-import { formatCurrency, formatDate, currentYearMonth, parseYearMonth } from '../utils/format.js';
+import { formatCurrency, formatDate, currentYearMonth, parseYearMonth, escapeHtml, sanitizeColor } from '../utils/format.js';
 
 /**
  * Thin adapters keeping the same call signatures as the former mock API.
@@ -251,7 +251,7 @@ function buildExpenseRow(expense) {
 }
 
 function buildCategoryBadge(expense) {
-  const color = escapeHtml(expense.categoryColor || '#6B7280');
+  const color = sanitizeColor(expense.categoryColor);
   const name = escapeHtml(expense.categoryName || '不明');
   return `
     <span class="category-badge">
@@ -380,12 +380,4 @@ async function handleDelete(btn, container, state) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Utility
-// ---------------------------------------------------------------------------
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = String(text ?? '');
-  return div.innerHTML;
-}
+// escapeHtml and sanitizeColor imported from format.js
