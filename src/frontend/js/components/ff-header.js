@@ -49,7 +49,7 @@ class FfHeader extends HTMLElement {
           right: 0;
           height: 60px;
           background-color: #ffffff;
-          border-bottom: 1px solid #E5E7EB;
+          border-bottom: 1px solid var(--color-border, #E5E7EB);
           display: flex;
           align-items: center;
           justify-content: space-between;
@@ -64,7 +64,7 @@ class FfHeader extends HTMLElement {
           gap: 8px;
           font-size: 1.25rem;
           font-weight: 700;
-          color: #3B82F6;
+          color: var(--color-primary, #3B82F6);
           text-decoration: none;
           cursor: pointer;
           border: none;
@@ -84,16 +84,16 @@ class FfHeader extends HTMLElement {
 
         .header__username {
           font-size: 0.875rem;
-          color: #374151;
+          color: var(--color-text, #374151);
         }
 
         .header__logout-btn {
           padding: 4px 16px;
           font-size: 0.875rem;
           background: none;
-          border: 1px solid #E5E7EB;
-          border-radius: 8px;
-          color: #6B7280;
+          border: 1px solid var(--color-border, #E5E7EB);
+          border-radius: var(--border-radius, 8px);
+          color: var(--color-text-secondary, #6B7280);
           cursor: pointer;
           font-family: inherit;
           transition: all 200ms ease;

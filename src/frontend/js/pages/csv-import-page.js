@@ -15,6 +15,7 @@
 
 import { api } from '../utils/api-client.js';
 import { router } from '../router.js';
+import { escapeHtml } from '../utils/format.js';
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 const ACCEPTED_MIME_TYPES = ['text/csv', 'application/csv', 'text/plain'];
@@ -323,8 +324,4 @@ function formatFileSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = String(text ?? '');
-  return div.innerHTML;
-}
+// escapeHtml imported from format.js

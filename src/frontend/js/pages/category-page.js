@@ -16,6 +16,7 @@
  */
 
 import { api } from '../utils/api-client.js';
+import { escapeHtml, sanitizeColor } from '../utils/format.js';
 
 // ---------------------------------------------------------------------------
 // Render entry point
@@ -119,7 +120,7 @@ function buildHtml(categories) {
         ${systemCategories.map(cat => `
           <li class="category-list__item category-list__item--readonly">
             <span class="category-list__dot"
-                  style="background-color: ${escapeHtml(cat.color)};"
+                  style="background-color: ${sanitizeColor(cat.color)};"
                   aria-hidden="true"></span>
             <span class="category-list__name">${escapeHtml(cat.name)}</span>
           </li>
@@ -142,7 +143,7 @@ function buildUserCategoryItem(cat) {
   return `
     <li class="category-list__item" data-id="${cat.id}">
       <span class="category-list__dot"
-            style="background-color: ${escapeHtml(cat.color)};"
+            style="background-color: ${sanitizeColor(cat.color)};"
             aria-hidden="true"></span>
       <!-- 閲覧モード -->
       <span class="category-list__name category-list__name--view">${escapeHtml(cat.name)}</span>
@@ -346,12 +347,4 @@ async function handleDeleteCategory(container, contentArea, cat) {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Utility
-// ---------------------------------------------------------------------------
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = String(text ?? '');
-  return div.innerHTML;
-}
+// escapeHtml and sanitizeColor imported from format.js

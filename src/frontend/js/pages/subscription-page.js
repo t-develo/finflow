@@ -16,7 +16,7 @@
  */
 
 import { api } from '../utils/api-client.js';
-import { formatCurrency, formatDate } from '../utils/format.js';
+import { formatCurrency, formatDate, escapeHtml } from '../utils/format.js';
 
 // ---------------------------------------------------------------------------
 // Render entry point
@@ -121,6 +121,12 @@ function buildShell() {
 
 async function loadAndRender(container, contentArea) {
   contentArea.innerHTML = `<div class="loading">読み込み中...</div>`;
+
+  // Clean up previous ESC key listener to prevent memory leaks
+  if (container._boundHandleEscKey) {
+    document.removeEventListener('keydown', container._boundHandleEscKey);
+    container._boundHandleEscKey = null;
+  }
 
   try {
     const subscriptions = await api.get('/subscriptions');
@@ -246,8 +252,10 @@ function attachEventListeners(container, subscriptions) {
   container.querySelector('#modal-cancel-btn')?.addEventListener('click', () => closeModal(container));
   container.querySelector('#modal-backdrop')?.addEventListener('click', () => closeModal(container));
 
-  // ESCキーでモーダルを閉じる
-  document.addEventListener('keydown', handleEscKey.bind(null, container));
+  // ESCキーでモーダルを閉じる（参照を保持して解除可能にする）
+  const boundHandleEscKey = (e) => handleEscKey(container, e);
+  container._boundHandleEscKey = boundHandleEscKey;
+  document.addEventListener('keydown', boundHandleEscKey);
 
   // 保存
   container.querySelector('#modal-save-btn')?.addEventListener('click', () => handleSave(container));
@@ -443,12 +451,4 @@ function clearValidationErrors(container) {
   container.querySelectorAll('.form__input--error').forEach(el => el.classList.remove('form__input--error'));
 }
 
-// ---------------------------------------------------------------------------
-// Utility
-// ---------------------------------------------------------------------------
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = String(text ?? '');
-  return div.innerHTML;
-}
+// escapeHtml imported from format.js

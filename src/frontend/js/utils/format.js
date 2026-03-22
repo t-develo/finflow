@@ -72,3 +72,30 @@ export function parseYearMonth(yearMonth) {
   const [year, month] = (yearMonth || '').split('-').map(Number);
   return { year: year || new Date().getFullYear(), month: month || new Date().getMonth() + 1 };
 }
+
+/**
+ * Escape HTML special characters to prevent XSS when inserting into innerHTML.
+ * @param {*} text
+ * @returns {string}
+ */
+export function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = String(text ?? '');
+  return div.innerHTML;
+}
+
+/**
+ * Sanitize a CSS color value. Returns the value if it matches a safe pattern,
+ * otherwise returns the fallback color.
+ * Accepts: #RGB, #RRGGBB, #RRGGBBAA, named CSS colors (letters only).
+ * @param {string} color
+ * @param {string} fallback
+ * @returns {string}
+ */
+export function sanitizeColor(color, fallback = '#6B7280') {
+  if (typeof color !== 'string') return fallback;
+  const trimmed = color.trim();
+  if (/^#([0-9A-Fa-f]{3,4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/.test(trimmed)) return trimmed;
+  if (/^[a-zA-Z]{1,30}$/.test(trimmed)) return trimmed;
+  return fallback;
+}

@@ -22,6 +22,7 @@
 import { api } from '../utils/api-client.js';
 import { router } from '../router.js';
 import { toast } from '../components/ff-toast.js';
+import { escapeHtml } from '../utils/format.js';
 
 /**
  * Thin adapters keeping the same call signatures as the former mock API.
@@ -350,12 +351,4 @@ async function handleSubmit(form, { mode, expenseId }) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Utility
-// ---------------------------------------------------------------------------
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = String(text ?? '');
-  return div.innerHTML;
-}
+// escapeHtml imported from format.js

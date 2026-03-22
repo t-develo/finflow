@@ -68,6 +68,8 @@ function buildHtml() {
               autocomplete="email"
               placeholder="you@example.com"
               required
+              aria-required="true"
+              aria-describedby="login-email-error"
             >
             <span class="form-group__error" id="login-email-error" role="alert"></span>
           </div>
@@ -84,6 +86,8 @@ function buildHtml() {
               autocomplete="current-password"
               placeholder="パスワードを入力"
               required
+              aria-required="true"
+              aria-describedby="login-password-error"
             >
             <span class="form-group__error" id="login-password-error" role="alert"></span>
           </div>

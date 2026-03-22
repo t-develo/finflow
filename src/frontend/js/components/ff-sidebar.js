@@ -80,8 +80,8 @@ class FfSidebar extends HTMLElement {
           left: 0;
           width: 240px;
           height: calc(100vh - 60px);
-          background-color: #ffffff;
-          border-right: 1px solid #E5E7EB;
+          background-color: var(--color-bg, #ffffff);
+          border-right: 1px solid var(--color-border, #E5E7EB);
           display: flex;
           flex-direction: column;
           z-index: 100;
@@ -109,9 +109,9 @@ class FfSidebar extends HTMLElement {
           align-items: center;
           gap: 8px;
           padding: 8px 16px;
-          color: #111827;
+          color: var(--color-text, #111827);
           text-decoration: none;
-          border-radius: 8px;
+          border-radius: var(--border-radius, 8px);
           font-size: 0.875rem;
           font-weight: 500;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -119,13 +119,13 @@ class FfSidebar extends HTMLElement {
         }
 
         .sidebar__link:hover {
-          background-color: #EFF6FF;
-          color: #3B82F6;
+          background-color: var(--color-primary-light, #EFF6FF);
+          color: var(--color-primary, #3B82F6);
         }
 
         .sidebar__link--active {
-          background-color: #EFF6FF;
-          color: #3B82F6;
+          background-color: var(--color-primary-light, #EFF6FF);
+          color: var(--color-primary, #3B82F6);
           font-weight: 600;
         }
 
