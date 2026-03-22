@@ -2,6 +2,33 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Plugin: everything-claude-code
+
+このプロジェクトは [everything-claude-code](https://github.com/affaan-m/everything-claude-code) プラグインを使用します。
+専門エージェント・スキル・セッション永続化フックが含まれています。
+
+### インストール方法（初回のみ）
+
+Claude Code のチャットで以下を実行:
+
+```
+/plugin marketplace add affaan-m/everything-claude-code
+/plugin install everything-claude-code@everything-claude-code
+```
+
+### セッション継続（iOS対応）
+
+**`SESSION_STATE.md`** がセッション間のコンテキスト引き継ぎファイルです。
+
+- **セッション開始時**: `SessionStart` フックが自動的に `SESSION_STATE.md` を表示します
+- **作業中**: 重要な決定・進捗があれば `SESSION_STATE.md` を更新してください
+- **セッション終了前**: 現在の状態を `SESSION_STATE.md` に記録してから終了してください
+
+```bash
+# 現在の作業状態を確認
+cat SESSION_STATE.md
+```
+
 ## Project Overview
 
 **FinFlow** is a household/subscription management app.
