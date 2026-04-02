@@ -35,6 +35,19 @@ public class ExpenseService : IExpenseService
             .ToListAsync();
     }
 
+    public async Task<int> CountExpensesAsync(string userId, ExpenseFilter? filter = null)
+    {
+        var query = _dbContext.Expenses
+            .Where(e => e.UserId == userId);
+
+        if (filter != null)
+        {
+            query = ApplyWhereFilter(query, filter);
+        }
+
+        return await query.CountAsync();
+    }
+
     public async Task<Expense?> GetExpenseByIdAsync(int id, string userId)
     {
         return await _dbContext.Expenses
@@ -129,6 +142,17 @@ public class ExpenseService : IExpenseService
 
     private IQueryable<Expense> ApplyFilter(IQueryable<Expense> query, ExpenseFilter filter)
     {
+        query = ApplyWhereFilter(query, filter);
+
+        var page = filter.Page > 0 ? filter.Page : 1;
+        var pageSize = filter.PageSize > 0 ? filter.PageSize : 50;
+        query = query.Skip((page - 1) * pageSize).Take(pageSize);
+
+        return query;
+    }
+
+    private static IQueryable<Expense> ApplyWhereFilter(IQueryable<Expense> query, ExpenseFilter filter)
+    {
         if (filter.From.HasValue)
             query = query.Where(e => e.Date >= filter.From.Value);
 
@@ -146,10 +170,6 @@ public class ExpenseService : IExpenseService
 
         if (!string.IsNullOrWhiteSpace(filter.Keyword))
             query = query.Where(e => e.Description != null && e.Description.Contains(filter.Keyword));
-
-        var page = filter.Page > 0 ? filter.Page : 1;
-        var pageSize = filter.PageSize > 0 ? filter.PageSize : 50;
-        query = query.Skip((page - 1) * pageSize).Take(pageSize);
 
         return query;
     }

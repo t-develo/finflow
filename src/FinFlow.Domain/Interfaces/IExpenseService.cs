@@ -5,6 +5,7 @@ namespace FinFlow.Domain.Interfaces;
 public interface IExpenseService
 {
     Task<IEnumerable<Expense>> GetExpensesAsync(string userId, ExpenseFilter? filter = null);
+    Task<int> CountExpensesAsync(string userId, ExpenseFilter? filter = null);
     Task<Expense?> GetExpenseByIdAsync(int id, string userId);
     Task<Expense> CreateExpenseAsync(Expense expense);
     Task<Expense?> UpdateExpenseAsync(int id, string userId, Expense updated);
