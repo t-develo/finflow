@@ -46,8 +46,12 @@ public class ExpensesController : ControllerBase
             PageSize = pageSize
         };
 
-        var expenses = await _expenseService.GetExpensesAsync(userId, filter);
-        var expenseList = expenses.ToList();
+        var expensesTask = _expenseService.GetExpensesAsync(userId, filter);
+        var countTask = _expenseService.CountExpensesAsync(userId, filter);
+        await Task.WhenAll(expensesTask, countTask);
+
+        var expenseList = expensesTask.Result.ToList();
+        var totalCount = countTask.Result;
 
         // S2-A-004: ページネーションメタデータをレスポンスに含める
         var response = new
@@ -57,8 +61,9 @@ public class ExpensesController : ControllerBase
             {
                 page,
                 pageSize,
-                // 次ページの存在チェック（pageSize件返ってきた場合は次ページがある可能性あり）
-                hasNextPage = expenseList.Count == pageSize
+                totalCount,
+                // 次ページの存在チェック
+                hasNextPage = (page * pageSize) < totalCount
             }
         };
         return Ok(response);

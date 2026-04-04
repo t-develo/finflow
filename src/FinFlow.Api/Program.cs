@@ -158,11 +158,14 @@ app.MapControllers();
 app.UseStaticFiles();
 app.MapFallbackToFile("index.html");
 
-// Apply EF Core migrations automatically on startup
+// Apply EF Core migrations automatically on startup (skip for InMemory provider used in tests)
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<FinFlowDbContext>();
-    db.Database.Migrate();
+    if (db.Database.IsRelational())
+    {
+        db.Database.Migrate();
+    }
 }
 
 app.Run();
