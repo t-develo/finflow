@@ -116,14 +116,68 @@ if [[ -n "${EXISTING_SP}" ]]; then
   az ad sp delete --id "${EXISTING_SP}" --output none
 fi
 
-AZURE_CREDENTIALS=$(az ad sp create-for-rbac \
+SP_OUTPUT=$(az ad sp create-for-rbac \
   --name "${SP_NAME}" \
   --role Contributor \
   --scopes "${DEV_RG_ID}" "${PROD_RG_ID}" \
-  --sdk-auth \
   --output json)
 
+AZURE_CLIENT_ID=$(echo "${SP_OUTPUT}" | jq -r '.appId')
+AZURE_CLIENT_SECRET=$(echo "${SP_OUTPUT}" | jq -r '.password')
+AZURE_TENANT_ID=$(echo "${SP_OUTPUT}" | jq -r '.tenant')
+
 success "サービスプリンシパル作成完了"
+
+# ----------------------------------------------------------------------------
+# OIDC フェデレーション資格情報の設定
+# ----------------------------------------------------------------------------
+header "OIDC フェデレーション資格情報の設定"
+
+read -rp "GitHub リポジトリ (owner/repo 形式): " GITHUB_REPO
+
+APP_OBJECT_ID=$(az ad app list --display-name "${SP_NAME}" --query "[0].id" -o tsv)
+
+info "フェデレーション資格情報を作成中 (main ブランチ用)..."
+az ad app federated-credential create \
+  --id "${APP_OBJECT_ID}" \
+  --parameters "{
+    \"name\": \"finflow-main-branch\",
+    \"issuer\": \"https://token.actions.githubusercontent.com\",
+    \"subject\": \"repo:${GITHUB_REPO}:ref:refs/heads/main\",
+    \"audiences\": [\"api://AzureADTokenExchange\"]
+  }" --output none 2>/dev/null || warn "main ブランチ用の資格情報は既に存在します"
+
+info "フェデレーション資格情報を作成中 (develop ブランチ用)..."
+az ad app federated-credential create \
+  --id "${APP_OBJECT_ID}" \
+  --parameters "{
+    \"name\": \"finflow-develop-branch\",
+    \"issuer\": \"https://token.actions.githubusercontent.com\",
+    \"subject\": \"repo:${GITHUB_REPO}:ref:refs/heads/develop\",
+    \"audiences\": [\"api://AzureADTokenExchange\"]
+  }" --output none 2>/dev/null || warn "develop ブランチ用の資格情報は既に存在します"
+
+info "フェデレーション資格情報を作成中 (production 環境用)..."
+az ad app federated-credential create \
+  --id "${APP_OBJECT_ID}" \
+  --parameters "{
+    \"name\": \"finflow-prod-environment\",
+    \"issuer\": \"https://token.actions.githubusercontent.com\",
+    \"subject\": \"repo:${GITHUB_REPO}:environment:production\",
+    \"audiences\": [\"api://AzureADTokenExchange\"]
+  }" --output none 2>/dev/null || warn "production 環境用の資格情報は既に存在します"
+
+info "フェデレーション資格情報を作成中 (development 環境用)..."
+az ad app federated-credential create \
+  --id "${APP_OBJECT_ID}" \
+  --parameters "{
+    \"name\": \"finflow-dev-environment\",
+    \"issuer\": \"https://token.actions.githubusercontent.com\",
+    \"subject\": \"repo:${GITHUB_REPO}:environment:development\",
+    \"audiences\": [\"api://AzureADTokenExchange\"]
+  }" --output none 2>/dev/null || warn "development 環境用の資格情報は既に存在します"
+
+success "OIDC フェデレーション資格情報の設定完了"
 
 # ----------------------------------------------------------------------------
 # シークレット生成
@@ -152,6 +206,9 @@ LOCATION="${LOCATION}"
 DEV_RESOURCE_GROUP="${DEV_RG}"
 PROD_RESOURCE_GROUP="${PROD_RG}"
 
+AZURE_CLIENT_ID="${AZURE_CLIENT_ID}"
+AZURE_TENANT_ID="${AZURE_TENANT_ID}"
+
 DEV_JWT_KEY="${DEV_JWT_KEY}"
 PROD_JWT_KEY="${PROD_JWT_KEY}"
 DEV_SQL_ADMIN_PASSWORD="${DEV_SQL_PASSWORD}"
@@ -172,44 +229,47 @@ echo -e "Settings > Secrets and variables > Actions > New repository secret\n"
 echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
-echo -e "${BOLD}1. AZURE_CREDENTIALS${NC}"
-echo "値:"
-echo "${AZURE_CREDENTIALS}" | jq .
+echo -e "${BOLD}1. AZURE_CLIENT_ID${NC}"
+echo "値: ${AZURE_CLIENT_ID}"
 echo ""
 
-echo -e "${BOLD}2. AZURE_SUBSCRIPTION_ID${NC}"
+echo -e "${BOLD}2. AZURE_TENANT_ID${NC}"
+echo "値: ${AZURE_TENANT_ID}"
+echo ""
+
+echo -e "${BOLD}3. AZURE_SUBSCRIPTION_ID${NC}"
 echo "値: ${SUBSCRIPTION_ID}"
 echo ""
 
-echo -e "${BOLD}3. DEV_JWT_KEY${NC}"
+echo -e "${BOLD}4. DEV_JWT_KEY${NC}"
 echo "値: ${DEV_JWT_KEY}"
 echo ""
 
-echo -e "${BOLD}4. PROD_JWT_KEY${NC}"
+echo -e "${BOLD}5. PROD_JWT_KEY${NC}"
 echo "値: ${PROD_JWT_KEY}"
 echo ""
 
-echo -e "${BOLD}5. DEV_SQL_ADMIN_PASSWORD${NC}"
+echo -e "${BOLD}6. DEV_SQL_ADMIN_PASSWORD${NC}"
 echo "値: ${DEV_SQL_PASSWORD}"
 echo ""
 
-echo -e "${BOLD}6. PROD_SQL_ADMIN_PASSWORD${NC}"
+echo -e "${BOLD}7. PROD_SQL_ADMIN_PASSWORD${NC}"
 echo "値: ${PROD_SQL_PASSWORD}"
 echo ""
 
-echo -e "${BOLD}7. SMTP_HOST${NC} (任意 - メール通知を使う場合)"
+echo -e "${BOLD}8. SMTP_HOST${NC} (任意 - メール通知を使う場合)"
 echo "値: SMTPサーバーのホスト名 (例: smtp.sendgrid.net)"
 echo ""
 
-echo -e "${BOLD}8. SMTP_USERNAME${NC} (任意)"
+echo -e "${BOLD}9. SMTP_USERNAME${NC} (任意)"
 echo "値: SMTPユーザー名"
 echo ""
 
-echo -e "${BOLD}9. SMTP_PASSWORD${NC} (任意)"
+echo -e "${BOLD}10. SMTP_PASSWORD${NC} (任意)"
 echo "値: SMTPパスワード"
 echo ""
 
-echo -e "${BOLD}10. SMTP_FROM_ADDRESS${NC} (任意)"
+echo -e "${BOLD}11. SMTP_FROM_ADDRESS${NC} (任意)"
 echo "値: 送信元メールアドレス (例: noreply@yourdomain.com)"
 echo ""
 

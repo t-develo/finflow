@@ -110,7 +110,8 @@ GitHub リポジトリの `Settings > Secrets and variables > Actions` で以下
 
 | Secret 名 | 説明 | 取得方法 |
 |-----------|------|---------|
-| `AZURE_CREDENTIALS` | サービスプリンシパルの JSON | `setup.sh` の出力 |
+| `AZURE_CLIENT_ID` | サービスプリンシパルの appId | `setup.sh` の出力 |
+| `AZURE_TENANT_ID` | Azure テナント ID | `setup.sh` の出力 |
 | `AZURE_SUBSCRIPTION_ID` | Azure サブスクリプション ID | `setup.sh` の出力 |
 | `DEV_JWT_KEY` | Dev 環境の JWT 署名キー | `setup.sh` の出力 |
 | `PROD_JWT_KEY` | Prod 環境の JWT 署名キー | `setup.sh` の出力 |
@@ -128,16 +129,15 @@ GitHub リポジトリの `Settings > Secrets and variables > Actions` で以下
 
 > SMTP を設定しない場合、メール通知機能はエラーになりますが、他の機能は正常に動作します。
 
-### `AZURE_CREDENTIALS` の形式
+### 認証方式: OIDC (OpenID Connect)
 
-```json
-{
-  "clientId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "clientSecret": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "subscriptionId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "tenantId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-}
-```
+GitHub Actions から Azure への認証には、シークレットベースの `AZURE_CREDENTIALS` JSON ではなく、**OIDC フェデレーション認証**を使用します。
+これにより、クライアントシークレットの管理が不要になり、セキュリティが向上します。
+
+`setup.sh` がサービスプリンシパルの作成とフェデレーション資格情報の設定を自動で行います。
+
+> **旧方式 (`AZURE_CREDENTIALS`) からの移行**: `AZURE_CREDENTIALS` シークレットは不要になりました。
+> 代わりに `AZURE_CLIENT_ID` と `AZURE_TENANT_ID` を個別に設定してください。
 
 ---
 
@@ -330,17 +330,19 @@ dotnet ef database update \
   --startup-project src/FinFlow.Api
 ```
 
-### GitHub Actions が失敗する (`AZURE_CREDENTIALS` 関連)
+### GitHub Actions が失敗する (Azure ログイン関連)
 
 **症状**: `az login` ステップで認証エラー
 
 **解決方法**:
-1. `AZURE_CREDENTIALS` Secret の JSON 形式が正しいか確認
-2. サービスプリンシパルのシークレットが期限切れでないか確認:
+1. `AZURE_CLIENT_ID`、`AZURE_TENANT_ID`、`AZURE_SUBSCRIPTION_ID` が正しく設定されているか確認
+2. OIDC フェデレーション資格情報が設定されているか確認:
 ```bash
-az ad sp show --id <clientId>
+APP_ID=$(az ad app list --display-name "finflow-github-actions-sp" --query "[0].id" -o tsv)
+az ad app federated-credential list --id "$APP_ID"
 ```
-3. 必要であれば `setup.sh` を再実行して SP を作り直す
+3. フェデレーション資格情報の `subject` がワークフローのブランチ/環境名と一致しているか確認
+4. 必要であれば `setup.sh` を再実行して SP とフェデレーション資格情報を作り直す
 
 ### F1 プランで `AlwaysOn` エラー
 
