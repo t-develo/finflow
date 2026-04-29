@@ -133,7 +133,16 @@ success "サービスプリンシパル作成完了"
 # ----------------------------------------------------------------------------
 header "OIDC フェデレーション資格情報の設定"
 
-read -rp "GitHub リポジトリ (owner/repo 形式): " GITHUB_REPO
+while true; do
+  read -rp "GitHub リポジトリ (owner/repo 形式、例: t-develo/finflow): " GITHUB_REPO
+  # URLやスラッシュ以外の余分な文字を含む入力を弾く
+  if [[ "${GITHUB_REPO}" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+    break
+  fi
+  warn "入力形式が正しくありません: '${GITHUB_REPO}'"
+  warn "正しい形式: owner/repo (例: t-develo/finflow)"
+  warn "GitHub URL ではなくオーナー名とリポジトリ名をスラッシュで区切って入力してください"
+done
 
 APP_OBJECT_ID=$(az ad app show --id "${AZURE_CLIENT_ID}" --query id -o tsv)
 
