@@ -133,49 +133,48 @@ success "サービスプリンシパル作成完了"
 # ----------------------------------------------------------------------------
 header "OIDC フェデレーション資格情報の設定"
 
-read -rp "GitHub リポジトリ (owner/repo 形式): " GITHUB_REPO
+while true; do
+  read -rp "GitHub リポジトリ (owner/repo 形式、例: t-develo/finflow): " GITHUB_REPO
+  # URLやスラッシュ以外の余分な文字を含む入力を弾く
+  if [[ "${GITHUB_REPO}" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+    break
+  fi
+  warn "入力形式が正しくありません: '${GITHUB_REPO}'"
+  warn "正しい形式: owner/repo (例: t-develo/finflow)"
+  warn "GitHub URL ではなくオーナー名とリポジトリ名をスラッシュで区切って入力してください"
+done
 
-APP_OBJECT_ID=$(az ad app list --display-name "${SP_NAME}" --query "[0].id" -o tsv)
+APP_OBJECT_ID=$(az ad app show --id "${AZURE_CLIENT_ID}" --query id -o tsv)
 
-info "フェデレーション資格情報を作成中 (main ブランチ用)..."
-az ad app federated-credential create \
-  --id "${APP_OBJECT_ID}" \
-  --parameters "{
-    \"name\": \"finflow-main-branch\",
+upsert_federated_credential() {
+  local cred_name="$1"
+  local subject="$2"
+  local params="{
+    \"name\": \"${cred_name}\",
     \"issuer\": \"https://token.actions.githubusercontent.com\",
-    \"subject\": \"repo:${GITHUB_REPO}:ref:refs/heads/main\",
+    \"subject\": \"${subject}\",
     \"audiences\": [\"api://AzureADTokenExchange\"]
-  }" --output none 2>/dev/null || warn "main ブランチ用の資格情報は既に存在します"
+  }"
 
-info "フェデレーション資格情報を作成中 (develop ブランチ用)..."
-az ad app federated-credential create \
-  --id "${APP_OBJECT_ID}" \
-  --parameters "{
-    \"name\": \"finflow-develop-branch\",
-    \"issuer\": \"https://token.actions.githubusercontent.com\",
-    \"subject\": \"repo:${GITHUB_REPO}:ref:refs/heads/develop\",
-    \"audiences\": [\"api://AzureADTokenExchange\"]
-  }" --output none 2>/dev/null || warn "develop ブランチ用の資格情報は既に存在します"
+  if az ad app federated-credential show --id "${APP_OBJECT_ID}" --federated-credential-id "${cred_name}" &>/dev/null; then
+    info "既存の資格情報を更新中: ${cred_name}"
+    az ad app federated-credential update \
+      --id "${APP_OBJECT_ID}" \
+      --federated-credential-id "${cred_name}" \
+      --parameters "${params}" --output none
+  else
+    info "資格情報を新規作成中: ${cred_name}"
+    az ad app federated-credential create \
+      --id "${APP_OBJECT_ID}" \
+      --parameters "${params}" --output none
+  fi
+  success "${cred_name} 完了 (subject: ${subject})"
+}
 
-info "フェデレーション資格情報を作成中 (production 環境用)..."
-az ad app federated-credential create \
-  --id "${APP_OBJECT_ID}" \
-  --parameters "{
-    \"name\": \"finflow-prod-environment\",
-    \"issuer\": \"https://token.actions.githubusercontent.com\",
-    \"subject\": \"repo:${GITHUB_REPO}:environment:production\",
-    \"audiences\": [\"api://AzureADTokenExchange\"]
-  }" --output none 2>/dev/null || warn "production 環境用の資格情報は既に存在します"
-
-info "フェデレーション資格情報を作成中 (development 環境用)..."
-az ad app federated-credential create \
-  --id "${APP_OBJECT_ID}" \
-  --parameters "{
-    \"name\": \"finflow-dev-environment\",
-    \"issuer\": \"https://token.actions.githubusercontent.com\",
-    \"subject\": \"repo:${GITHUB_REPO}:environment:development\",
-    \"audiences\": [\"api://AzureADTokenExchange\"]
-  }" --output none 2>/dev/null || warn "development 環境用の資格情報は既に存在します"
+upsert_federated_credential "finflow-main-branch"     "repo:${GITHUB_REPO}:ref:refs/heads/main"
+upsert_federated_credential "finflow-develop-branch"  "repo:${GITHUB_REPO}:ref:refs/heads/develop"
+upsert_federated_credential "finflow-prod-environment" "repo:${GITHUB_REPO}:environment:production"
+upsert_federated_credential "finflow-dev-environment"  "repo:${GITHUB_REPO}:environment:development"
 
 success "OIDC フェデレーション資格情報の設定完了"
 
