@@ -8,23 +8,35 @@
   "hooks": {
     "SessionStart": [
       {
-        "name": "load-session-state",
-        "description": "Load previous session state on startup (iOS session continuity)",
-        "command": "bash -c 'if [ -f SESSION_STATE.md ]; then echo \"=== Previous Session State ===\"; cat SESSION_STATE.md; echo \"=== End of Session State ===\"; fi'"
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'if [ -f SESSION_STATE.md ]; then echo \"=== Previous Session State ===\"; cat SESSION_STATE.md; echo \"=== End of Session State ===\"; fi'"
+          }
+        ]
       }
     ],
     "PreCompact": [
       {
-        "name": "save-state-before-compaction",
-        "description": "Remind Claude to save state before context compaction",
-        "command": "bash -c 'echo \"[PreCompact] Context compaction imminent. Update SESSION_STATE.md with current task status if not already done.\"'"
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'echo \"[PreCompact] Context compaction imminent. Update SESSION_STATE.md with current task status if not already done.\"'"
+          }
+        ]
       }
     ],
     "Stop": [
       {
-        "name": "session-persist-reminder",
-        "description": "Remind Claude to keep SESSION_STATE.md current",
-        "command": "bash -c 'echo \"[SessionEnd] Ensure SESSION_STATE.md reflects current progress for iOS session continuity.\"'"
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'echo \"[SessionEnd] Ensure SESSION_STATE.md reflects current progress for iOS session continuity.\"'"
+          }
+        ]
       }
     ]
   }

@@ -28,7 +28,12 @@ if (builder.Environment.IsProduction() &&
 
 // Database
 builder.Services.AddDbContext<FinFlowDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+{
+    if (builder.Environment.IsDevelopment())
+        options.UseInMemoryDatabase("FinFlowDev");
+    else
+        options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
+});
 
 // Identity
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
