@@ -4,9 +4,9 @@
 
 | ツール | バージョン | 用途 |
 |--------|-----------|------|
-| .NET SDK | 8.0+ | バックエンド開発 |
+| .NET SDK | 10.0+ | バックエンド開発 |
 | SQL Server | 2019+ / LocalDB | データベース |
-| dotnet-ef | 8.0.0 | EF Coreマイグレーション |
+| dotnet-ef | 10.0.0 | EF Coreマイグレーション |
 | Node.js | 不要 | フロントエンドはビルドツール不使用 |
 | MailHog | 最新 | 開発用モックSMTPサーバー |
 
@@ -22,7 +22,7 @@ cd finflow
 ### 2. dotnet-ef のインストール
 
 ```bash
-dotnet tool install --global dotnet-ef --version 8.0.0
+dotnet tool install --global dotnet-ef --version 10.0.0
 ```
 
 ### 3. データベースのセットアップ

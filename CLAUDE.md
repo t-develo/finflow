@@ -32,7 +32,7 @@ cat SESSION_STATE.md
 ## Project Overview
 
 **FinFlow** is a household/subscription management app.
-- **Backend:** C# (.NET 8), ASP.NET Core Web API, Entity Framework Core, SQL Server
+- **Backend:** C# (.NET 10), ASP.NET Core Web API, Entity Framework Core, SQL Server
 - **Frontend:** Vanilla JS (ES2020+, no framework, no build tools), Web Components, Chart.js
 - **Testing:** xUnit + FluentAssertions
 - **Auth:** ASP.NET Identity + JWT
