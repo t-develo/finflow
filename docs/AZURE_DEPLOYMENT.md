@@ -63,7 +63,7 @@ GitHub リポジトリ
 | ツール | バージョン | インストール方法 |
 |-------|----------|----------------|
 | Azure CLI | 2.50 以上 | https://learn.microsoft.com/cli/azure/install-azure-cli |
-| .NET SDK | 8.0 以上 | https://dotnet.microsoft.com/download |
+| .NET SDK | 10.0 以上 | https://dotnet.microsoft.com/download |
 | jq | 1.6 以上 | `brew install jq` / `apt install jq` / https://jqlang.github.io/jq/download/ |
 | openssl | 任意 | OS 標準で通常インストール済み |
 | zip | 任意 | OS 標準で通常インストール済み |

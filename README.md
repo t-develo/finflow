@@ -14,7 +14,7 @@
 
 | レイヤー | 技術 |
 |---------|------|
-| バックエンド | C# / .NET 8, ASP.NET Core Web API |
+| バックエンド | C# / .NET 10, ASP.NET Core Web API |
 | データベース | SQL Server / Azure SQL Database, Entity Framework Core |
 | フロントエンド | Vanilla JS (ES2020+), Web Components, Chart.js |
 | 認証 | ASP.NET Identity + JWT |
@@ -79,9 +79,9 @@ docs/                        # 設計ドキュメント、API 仕様、WBS
 
 | ツール | バージョン |
 |-------|----------|
-| .NET SDK | 8.0 以上 |
+| .NET SDK | 10.0 以上 |
 | SQL Server / LocalDB | 2019 以上 |
-| dotnet-ef | 8.0.0 |
+| dotnet-ef | 10.0.0 |
 | Docker (任意) | メール通知テスト用 MailHog |
 
 ### 手順
@@ -96,7 +96,7 @@ cd finflow
 **2. dotnet-ef のインストール**
 
 ```bash
-dotnet tool install --global dotnet-ef --version 8.0.0
+dotnet tool install --global dotnet-ef --version 10.0.0
 ```
 
 **3. データベースのセットアップ**

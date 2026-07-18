@@ -12,7 +12,7 @@ on:
         default: '手動デプロイ'
 
 env:
-  DOTNET_VERSION: '8.0.x'
+  DOTNET_VERSION: '10.0.x'
   ENV_NAME: prod
   RESOURCE_GROUP: finflow-prod-rg
   ARM_TEMPLATE: infra/arm/main.json

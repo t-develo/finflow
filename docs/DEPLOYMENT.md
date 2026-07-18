@@ -16,7 +16,7 @@
 
 | コンポーネント | 開発環境 | 本番環境 |
 |--------------|---------|---------|
-| .NET SDK | 8.0 以上 | .NET 8.0 ランタイム |
+| .NET SDK | 10.0 以上 | .NET 10.0 ランタイム |
 | SQL Server | LocalDB または SQL Server 2019+ | SQL Server 2019+ / Azure SQL |
 | SMTP サーバー | MailHog (ローカル) | SendGrid / 社内 SMTP |
 | OS | Windows / macOS / Linux | Linux (推奨) / Windows Server |

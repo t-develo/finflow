@@ -115,7 +115,7 @@
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
         "httpsOnly": true,
         "siteConfig": {
-          "linuxFxVersion": "DOTNETCORE|8.0",
+          "linuxFxVersion": "DOTNETCORE|10.0",
           "alwaysOn": "[not(equals(parameters('appServicePlanSku'), 'F1'))]",
           "ftpsState": "Disabled",
           "minTlsVersion": "1.2",

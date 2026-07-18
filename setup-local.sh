@@ -24,13 +24,13 @@ else
     error "未対応のOSです: $OSTYPE (Linux / macOS のみサポート)"
 fi
 
-# --- 1. .NET SDK 8 ---
-section "1. .NET SDK 8 の確認・インストール"
+# --- 1. .NET SDK 10 ---
+section "1. .NET SDK 10 の確認・インストール"
 
-if command -v dotnet &>/dev/null && dotnet --version | grep -q "^8\."; then
-    info ".NET SDK 8 は導入済みです: $(dotnet --version)"
+if command -v dotnet &>/dev/null && dotnet --version | grep -q "^10\."; then
+    info ".NET SDK 10 は導入済みです: $(dotnet --version)"
 else
-    warn ".NET SDK 8 が見つかりません。インストールします..."
+    warn ".NET SDK 10 が見つかりません。インストールします..."
     if [[ "$OS" == "linux" ]]; then
         # Microsoft 公式リポジトリ経由でインストール
         if command -v apt-get &>/dev/null; then
@@ -40,24 +40,24 @@ else
             sudo dpkg -i /tmp/packages-microsoft-prod.deb
             rm /tmp/packages-microsoft-prod.deb
             sudo apt-get update -q
-            sudo apt-get install -y dotnet-sdk-8.0
+            sudo apt-get install -y dotnet-sdk-10.0
         elif command -v dnf &>/dev/null; then
             # Fedora / RHEL
-            sudo dnf install -y dotnet-sdk-8.0
+            sudo dnf install -y dotnet-sdk-10.0
         else
-            error "パッケージマネージャーが見つかりません。手動で .NET SDK 8 をインストールしてください:\n  https://dotnet.microsoft.com/download/dotnet/8.0"
+            error "パッケージマネージャーが見つかりません。手動で .NET SDK 10 をインストールしてください:\n  https://dotnet.microsoft.com/download/dotnet/10.0"
         fi
     elif [[ "$OS" == "macos" ]]; then
         if command -v brew &>/dev/null; then
             brew install --cask dotnet-sdk
         else
-            error "Homebrew が見つかりません。以下からインストールしてください:\n  https://dotnet.microsoft.com/download/dotnet/8.0"
+            error "Homebrew が見つかりません。以下からインストールしてください:\n  https://dotnet.microsoft.com/download/dotnet/10.0"
         fi
     fi
 
     # 再確認
-    if ! dotnet --version | grep -q "^8\."; then
-        error ".NET SDK 8 のインストールに失敗しました。手動でインストールしてください:\n  https://dotnet.microsoft.com/download/dotnet/8.0"
+    if ! dotnet --version | grep -q "^10\."; then
+        error ".NET SDK 10 のインストールに失敗しました。手動でインストールしてください:\n  https://dotnet.microsoft.com/download/dotnet/10.0"
     fi
     info ".NET SDK のインストール完了: $(dotnet --version)"
 fi
@@ -70,7 +70,7 @@ if dotnet tool list --global 2>/dev/null | grep -q "dotnet-ef"; then
     info "dotnet-ef は導入済みです: $EF_VER"
 else
     warn "dotnet-ef が見つかりません。インストールします..."
-    dotnet tool install --global dotnet-ef --version 8.0.0
+    dotnet tool install --global dotnet-ef --version 10.0.0
     info "dotnet-ef のインストール完了"
 fi
 
