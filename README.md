@@ -252,6 +252,7 @@ az login
 | [docs/SETUP.md](docs/SETUP.md) | ローカル開発環境セットアップ詳細 |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | オンプレ/Linux デプロイ手順 |
 | [docs/AZURE_DEPLOYMENT.md](docs/AZURE_DEPLOYMENT.md) | Azure デプロイ詳細・トラブルシューティング |
+| [docs/RASPBERRY_PI_DEPLOYMENT.md](docs/RASPBERRY_PI_DEPLOYMENT.md) | ラズパイ常駐運用（systemd 自動起動・SQLite） |
 | [docs/CODING_STANDARDS.md](docs/CODING_STANDARDS.md) | コーディング規約 |
 | [docs/schema/er-diagram.md](docs/schema/er-diagram.md) | ER 図・テーブル定義 |
 | [docs/api-spec-final.md](docs/api-spec-final.md) | API 仕様 |

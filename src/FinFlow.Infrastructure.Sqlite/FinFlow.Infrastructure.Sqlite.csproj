@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    SQLite 用のマイグレーションのみを保持するプロジェクト。
+    SQL Server（Azure）用のマイグレーションは FinFlow.Infrastructure/Migrations に残したまま、
+    EF Core の「マイグレーション用アセンブリを分ける」方式でプロバイダごとの世代を共存させる。
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FinFlow.Infrastructure\FinFlow.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

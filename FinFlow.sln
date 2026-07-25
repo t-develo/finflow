@@ -15,13 +15,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{8236FE81
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FinFlow.Tests", "tests\FinFlow.Tests\FinFlow.Tests.csproj", "{36F4C29C-562D-45DA-B8DD-816BD21AA4CD}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FinFlow.Infrastructure.Sqlite", "src\FinFlow.Infrastructure.Sqlite\FinFlow.Infrastructure.Sqlite.csproj", "{94620460-A699-4F2D-9846-5C80F9DFA504}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
-	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{FEEB726D-6C1A-47E9-BBFF-6F8B599CC398}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -40,11 +39,19 @@ Global
 		{36F4C29C-562D-45DA-B8DD-816BD21AA4CD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{36F4C29C-562D-45DA-B8DD-816BD21AA4CD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{36F4C29C-562D-45DA-B8DD-816BD21AA4CD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{94620460-A699-4F2D-9846-5C80F9DFA504}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{94620460-A699-4F2D-9846-5C80F9DFA504}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{94620460-A699-4F2D-9846-5C80F9DFA504}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{94620460-A699-4F2D-9846-5C80F9DFA504}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{FEEB726D-6C1A-47E9-BBFF-6F8B599CC398} = {8D95010D-0517-427D-A5A0-4307D3C859B4}
 		{98318EDB-34EA-4AC4-BEEF-3E3F7F3749E4} = {8D95010D-0517-427D-A5A0-4307D3C859B4}
 		{185AE967-EB6F-47D9-B515-420A47FABFD8} = {8D95010D-0517-427D-A5A0-4307D3C859B4}
 		{36F4C29C-562D-45DA-B8DD-816BD21AA4CD} = {8236FE81-71FD-40B6-BDD5-F610CDACAE4F}
+		{94620460-A699-4F2D-9846-5C80F9DFA504} = {8D95010D-0517-427D-A5A0-4307D3C859B4}
 	EndGlobalSection
 EndGlobal

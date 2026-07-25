@@ -1,0 +1,51 @@
+[Unit]
+Description=FinFlow API (household expense manager)
+Documentation=https://github.com/t-develo/finflow/blob/main/docs/RASPBERRY_PI_DEPLOYMENT.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# Microsoft.Extensions.Hosting.Systemd により、実際に待ち受け開始してから active になる
+Type=notify
+User=finflow
+Group=finflow
+WorkingDirectory=/opt/finflow
+ExecStart=/usr/bin/dotnet /opt/finflow/FinFlow.Api.dll
+
+# クラッシュしても自動復帰させる
+Restart=always
+RestartSec=10
+SyslogIdentifier=finflow
+
+# --- アプリ設定 ---------------------------------------------------------
+# launchSettings.json は dotnet run 専用で publish されないため、
+# 待ち受けアドレスはここで明示する必要がある。
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://0.0.0.0:5212
+Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
+
+# SQL Server には ARM ビルドが無いため、ラズパイでは SQLite を使う
+Environment=Database__Provider=Sqlite
+Environment=ConnectionStrings__DefaultConnection=Data Source=/var/lib/finflow/finflow.db
+
+# HTTP のみで待ち受けるため、HTTPS へのリダイレクトは無効化する
+Environment=Https__RedirectEnabled=false
+
+# Jwt__Key などの機密値はこのファイルで管理する（install.sh が 0600 で生成）
+EnvironmentFile=/etc/finflow/finflow.env
+
+# --- 権限まわり ---------------------------------------------------------
+# /var/lib/finflow を systemd が作成し finflow 所有にする（SQLite の DB 置き場）
+StateDirectory=finflow
+StateDirectoryMode=0700
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

@@ -17,7 +17,7 @@
 | コンポーネント | 開発環境 | 本番環境 |
 |--------------|---------|---------|
 | .NET SDK | 10.0 以上 | .NET 10.0 ランタイム |
-| SQL Server | LocalDB または SQL Server 2019+ | SQL Server 2019+ / Azure SQL |
+| データベース | InMemory（既定）/ SQL Server LocalDB | SQL Server 2019+ / Azure SQL / SQLite |
 | SMTP サーバー | MailHog (ローカル) | SendGrid / 社内 SMTP |
 | OS | Windows / macOS / Linux | Linux (推奨) / Windows Server |
 
@@ -66,14 +66,14 @@ MailHog の管理 UI: http://localhost:8025
 dotnet run --project src/FinFlow.Api
 ```
 
-デフォルト: https://localhost:5001
-Swagger UI: https://localhost:5001/swagger
-フロントエンド: https://localhost:5001/index.html
+デフォルト: http://localhost:5212
+Swagger UI: http://localhost:5212/swagger
+フロントエンド: http://localhost:5212/index.html
 
 ### 6. フロントエンドの確認
 
 フロントエンドはビルド不要のバニラ JS です。API サーバーが静的ファイルを配信します。
-ブラウザで `https://localhost:5001` を開いてください。
+ブラウザで `http://localhost:5212` を開いてください。
 
 ---
 
@@ -101,8 +101,15 @@ export Jwt__Issuer="FinFlowApi"
 export Jwt__Audience="FinFlowClient"
 export Jwt__ExpiryHours="24"
 
+# データベースプロバイダ（省略時: Development=InMemory / それ以外=SqlServer）
+# InMemory | SqlServer | Sqlite のいずれか
+export Database__Provider="SqlServer"
+
 # データベース接続文字列
 export ConnectionStrings__DefaultConnection="Server=<host>;Database=FinFlow;User Id=<user>;Password=<password>;"
+# SQLite を使う場合の例:
+# export Database__Provider="Sqlite"
+# export ConnectionStrings__DefaultConnection="Data Source=/var/lib/finflow/finflow.db"
 
 # CORS 許可オリジン（本番フロントエンドのURL）
 export Cors__AllowedOrigins__0="https://your-domain.com"
@@ -124,19 +131,21 @@ export Smtp__FromName="FinFlow"
 ```ini
 [Unit]
 Description=FinFlow API
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
+Type=notify
 WorkingDirectory=/opt/finflow
 ExecStart=/usr/bin/dotnet /opt/finflow/FinFlow.Api.dll
 Restart=always
 RestartSec=10
 SyslogIdentifier=finflow
-User=www-data
+User=finflow
 Environment=ASPNETCORE_ENVIRONMENT=Production
-Environment=ASPNETCORE_URLS=http://0.0.0.0:5000
+Environment=ASPNETCORE_URLS=http://0.0.0.0:5212
 # 環境変数ファイルで機密情報を管理
-EnvironmentFile=/etc/finflow/secrets.env
+EnvironmentFile=/etc/finflow/finflow.env
 
 [Install]
 WantedBy=multi-user.target
@@ -147,6 +156,13 @@ sudo systemctl daemon-reload
 sudo systemctl enable finflow
 sudo systemctl start finflow
 ```
+
+> **注意:** `src/FinFlow.Api/Properties/launchSettings.json` は `dotnet run` 専用で publish されず、
+> systemd からは読まれない。待ち受けアドレスは必ず `ASPNETCORE_URLS` で明示すること。
+
+> **ラズベリーパイの場合**は、上記を自動化した専用スクリプトとユニットファイルが
+> `infra/raspi/` にある。SQLite を使う構成込みの手順は
+> [docs/RASPBERRY_PI_DEPLOYMENT.md](RASPBERRY_PI_DEPLOYMENT.md) を参照。
 
 ### 4. リバースプロキシの設定（Nginx）
 
@@ -165,7 +181,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
 
     location / {
-        proxy_pass http://localhost:5000;
+        proxy_pass http://localhost:5212;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection keep-alive;
@@ -184,7 +200,7 @@ server {
 # 443 (HTTPS) と 80 (HTTP→HTTPS リダイレクト) のみ開放
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
-sudo ufw deny 5000/tcp  # アプリポートは直接公開しない
+sudo ufw deny 5212/tcp  # アプリポートは直接公開しない
 ```
 
 ---
@@ -214,11 +230,25 @@ openssl rand -base64 48
 
 ## データベースマイグレーション
 
+SQL Server 用と SQLite 用でマイグレーションのアセンブリを分けている。
+エンティティやモデル設定を変更した場合は**両方**を更新すること。
+
+| プロバイダ | マイグレーションの場所 |
+|-----------|---------------------|
+| SQL Server（Azure） | `src/FinFlow.Infrastructure/Migrations/` |
+| SQLite（ラズパイ） | `src/FinFlow.Infrastructure.Sqlite/Migrations/` |
+
 ### 新しいマイグレーションの作成
 
 ```bash
+# SQL Server 用（既定）
 dotnet ef migrations add <MigrationName> \
   --project src/FinFlow.Infrastructure \
+  --startup-project src/FinFlow.Api
+
+# SQLite 用（FINFLOW_MIGRATIONS_PROVIDER でプロバイダを切り替える）
+FINFLOW_MIGRATIONS_PROVIDER=Sqlite dotnet ef migrations add <MigrationName> \
+  --project src/FinFlow.Infrastructure.Sqlite \
   --startup-project src/FinFlow.Api
 ```
 
@@ -260,7 +290,7 @@ curl -X POST https://your-domain.com/api/auth/login \
 ```
 
 Swagger UI（開発環境のみ）:
-- https://localhost:5001/swagger
+- http://localhost:5212/swagger
 
 ---
 

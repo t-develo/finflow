@@ -15,11 +15,13 @@
     </PackageReference>
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="10.0.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\FinFlow.Domain\FinFlow.Domain.csproj" />
     <ProjectReference Include="..\FinFlow.Infrastructure\FinFlow.Infrastructure.csproj" />
+    <ProjectReference Include="..\FinFlow.Infrastructure.Sqlite\FinFlow.Infrastructure.Sqlite.csproj" />
   </ItemGroup>
 
 </Project>
