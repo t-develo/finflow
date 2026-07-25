@@ -1,6 +1,49 @@
 import { auth } from './utils/auth.js';
 
 const routes = new Map();
+// Routes containing a ":param" segment (e.g. "/expenses/:id/edit") can't be
+// looked up by exact string match, so they're kept separately and matched
+// via regex, in registration order. Plain routes always take precedence
+// (checked first via the `routes` Map), so a literal route like
+// "/expenses/new" never falls through to a pattern like "/expenses/:id/edit".
+const patternRoutes = [];
+
+let routeChangeListener = null;
+
+/**
+ * Convert a route template ("/expenses/:id/edit") into a RegExp plus the
+ * ordered list of param names it captures. Each ":param" segment matches
+ * exactly one path segment ([^/]+) so it can never span a "/".
+ */
+function compilePattern(path) {
+  const keys = [];
+  const regexSource = path
+    .split('/')
+    .map((segment) => {
+      if (segment.startsWith(':')) {
+        keys.push(segment.slice(1));
+        return '([^/]+)';
+      }
+      return segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    })
+    .join('/');
+  return { regex: new RegExp(`^${regexSource}$`), keys };
+}
+
+function matchRoute(path) {
+  if (routes.has(path)) {
+    return { handler: routes.get(path), params: {} };
+  }
+  for (const { regex, keys, handler } of patternRoutes) {
+    const match = path.match(regex);
+    if (match) {
+      const params = {};
+      keys.forEach((key, i) => { params[key] = match[i + 1]; });
+      return { handler, params };
+    }
+  }
+  return null;
+}
 
 function navigate(path) {
   window.history.pushState({}, '', path);
@@ -27,10 +70,15 @@ function handleRoute(path) {
     updateActiveLink(path);
   }
 
-  const handler = routes.get(path) || routes.get('*');
+  if (routeChangeListener) {
+    routeChangeListener(isAuthPage);
+  }
+
+  const matched = matchRoute(path);
+  const handler = matched ? matched.handler : routes.get('*');
   if (handler) {
     container.innerHTML = '';
-    handler(container);
+    handler(container, matched ? matched.params : {});
   }
 }
 
@@ -43,8 +91,23 @@ function updateActiveLink(path) {
 
 export const router = {
   on(path, handler) {
-    routes.set(path, handler);
+    if (path.includes(':')) {
+      const { regex, keys } = compilePattern(path);
+      patternRoutes.push({ regex, keys, handler });
+    } else {
+      routes.set(path, handler);
+    }
     return this;
+  },
+
+  /**
+   * Register a callback invoked on every route change with
+   * `isAuthPage` (true for /login, /register). Used by app.js to keep
+   * layout chrome (e.g. the hamburger button) in sync with routing
+   * without router.js needing to know about layout elements.
+   */
+  onRouteChange(callback) {
+    routeChangeListener = callback;
   },
 
   start() {
