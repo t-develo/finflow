@@ -331,6 +331,66 @@ public class ExpenseScenarioTests : IClassFixture<ExpenseScenarioTestFixture>
     }
 
     // =====================================================================
+    // 合計金額（totalAmount）のシナリオテスト
+    // =====================================================================
+
+    [Fact]
+    public async Task ExpenseTotalAmount_WithPaging_ReflectsAllMatchingRowsNotJustCurrentPage()
+    {
+        // Arrange: ページサイズより多い件数の支出を登録する
+        // （現在ページ分だけを合計すると、2ページ目以降で嘘の金額を表示してしまうため）
+        var client = CreateFreshClient();
+        await SetupAuthAsync(client, $"scenario_total_paging_{Guid.NewGuid():N}@example.com");
+        var categoryId = await CreateTestCategoryAsync(client);
+
+        for (var i = 1; i <= 5; i++)
+        {
+            await CreateExpenseAsync(client, i * 100m, categoryId,
+                new DateOnly(2026, 3, i), $"totalAmount検証 {i:D2}");
+        }
+        // 合計: 100+200+300+400+500 = 1500
+
+        // Act: ページサイズ2でページ1を取得する（3件が別ページに存在する状態）
+        var response = await client.GetAsync("/api/expenses?page=1&pageSize=2");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadAsStringAsync();
+        var result = JsonSerializer.Deserialize<JsonElement>(body, JsonOptions);
+
+        // Assert: data には2件のみ含まれるが、totalAmount はフィルタ条件に一致する
+        // 5件全ての合計（1500）でなければならない
+        result.GetProperty("data").GetArrayLength().Should().Be(2);
+        result.GetProperty("totalAmount").GetDecimal().Should().Be(1500m,
+            "totalAmountは現在ページの合計ではなく、フィルタ条件に一致する全件の合計であること");
+    }
+
+    [Fact]
+    public async Task ExpenseTotalAmount_WithFilters_SumsOnlyMatchingExpenses()
+    {
+        // Arrange: フィルタ対象外の支出も混在させる
+        var client = CreateFreshClient();
+        await SetupAuthAsync(client, $"scenario_total_filter_{Guid.NewGuid():N}@example.com");
+        var foodCategoryId = await CreateTestCategoryAsync(client, "食費_total");
+        var transportCategoryId = await CreateTestCategoryAsync(client, "交通費_total");
+
+        await CreateExpenseAsync(client, 500m, foodCategoryId, new DateOnly(2026, 3, 1), "食費1");
+        await CreateExpenseAsync(client, 700m, foodCategoryId, new DateOnly(2026, 3, 5), "食費2");
+        await CreateExpenseAsync(client, 300m, transportCategoryId, new DateOnly(2026, 3, 3), "交通費1");
+        await CreateExpenseAsync(client, 9999m, foodCategoryId, new DateOnly(2026, 4, 1), "4月食費（対象外）");
+
+        // Act: 3月の食費のみをフィルタする
+        var response = await client.GetAsync(
+            $"/api/expenses?from=2026-03-01&to=2026-03-31&categoryId={foodCategoryId}");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadAsStringAsync();
+        var result = JsonSerializer.Deserialize<JsonElement>(body, JsonOptions);
+
+        // Assert: 3月の食費のみの合計（500+700=1200）であること
+        result.GetProperty("totalAmount").GetDecimal().Should().Be(1200m);
+    }
+
+    // =====================================================================
     // 複合フィルタ＆ページングのシナリオテスト
     // =====================================================================
 

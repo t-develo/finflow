@@ -48,6 +48,23 @@ public class ExpenseService : IExpenseService
         return await query.CountAsync();
     }
 
+    /// <summary>
+    /// フィルタ条件に一致する支出（ページングなし・全件）の合計金額を返す。
+    /// 現在ページ分のみの合計ではないため、一覧画面の合計表示に使用できる。
+    /// </summary>
+    public async Task<decimal> SumExpensesAsync(string userId, ExpenseFilter? filter = null)
+    {
+        var query = _dbContext.Expenses
+            .Where(e => e.UserId == userId);
+
+        if (filter != null)
+        {
+            query = ApplyWhereFilter(query, filter);
+        }
+
+        return await query.SumAsync(e => e.Amount);
+    }
+
     public async Task<Expense?> GetExpenseByIdAsync(int id, string userId)
     {
         return await _dbContext.Expenses

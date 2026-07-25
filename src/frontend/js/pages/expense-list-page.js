@@ -13,7 +13,8 @@
  *  - Empty state message when no data
  *
  * API:
- *   GET    /api/expenses?year=&month=&categoryId=&page=&pageSize=
+ *   GET    /api/expenses?from=&to=&categoryId=&page=&pageSize=
+ *     -> { data: Expense[], pagination: { page, pageSize, totalCount, hasNextPage }, totalAmount }
  *   GET    /api/categories
  *   DELETE /api/expenses/:id
  */
@@ -29,8 +30,8 @@ import { formatCurrency, formatDate, currentYearMonth, parseYearMonth, escapeHtm
  * All requests are delegated to the real api-client.
  */
 const expensesApi = {
-  getList: ({ year, month, categoryId, page, pageSize }) => {
-    const params = new URLSearchParams({ year, month, page, pageSize });
+  getList: ({ from, to, categoryId, page, pageSize }) => {
+    const params = new URLSearchParams({ from, to, page, pageSize });
     if (categoryId && String(categoryId) !== '0') params.set('categoryId', categoryId);
     return api.get(`/expenses?${params}`);
   },
@@ -45,6 +46,23 @@ const categoriesApi = {
 };
 
 const PAGE_SIZE = 20;
+
+/**
+ * Compute the first/last day of a given year/month as "YYYY-MM-DD" strings,
+ * for use as the API's `from`/`to` query params (the backend filters by
+ * date range, not by year/month).
+ * @param {number} year
+ * @param {number} month  1-12
+ * @returns {{ from: string, to: string }}
+ */
+function monthToDateRange(year, month) {
+  const pad = (n) => String(n).padStart(2, '0');
+  const lastDay = new Date(year, month, 0).getDate();
+  return {
+    from: `${year}-${pad(month)}-01`,
+    to: `${year}-${pad(month)}-${pad(lastDay)}`,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Page state
@@ -147,9 +165,10 @@ async function loadAndRender(container, state) {
 
   try {
     const { year, month } = parseYearMonth(state.yearMonth);
+    const { from, to } = monthToDateRange(year, month);
     state.listResult = await expensesApi.getList({
-      year,
-      month,
+      from,
+      to,
       categoryId: state.categoryId,
       page: state.page,
       pageSize: PAGE_SIZE,
@@ -171,7 +190,10 @@ async function loadAndRender(container, state) {
 // ---------------------------------------------------------------------------
 
 function buildDataHtml(result) {
-  const { items, total, page, totalPages, totalAmount } = result;
+  const items = result.data ?? [];
+  const { page = 1, totalCount = 0 } = result.pagination ?? {};
+  const totalAmount = result.totalAmount ?? 0;
+  const totalPages = totalPagesOf(totalCount);
 
   if (items.length === 0) {
     return `
@@ -203,13 +225,24 @@ function buildDataHtml(result) {
       </div>
 
       <div class="table-summary">
-        <span class="table-summary__label">合計 ${total}件</span>
+        <span class="table-summary__label">合計 ${totalCount}件</span>
         <span class="table-summary__value">${formatCurrency(totalAmount)}</span>
       </div>
 
       ${totalPages > 1 ? buildPagination(page, totalPages) : ''}
     </div>
   `;
+}
+
+/**
+ * Derive total page count from the API's totalCount. `totalPages` is not
+ * returned by the API (only totalCount is), since it can always be derived
+ * from totalCount and the known PAGE_SIZE.
+ * @param {number} totalCount
+ * @returns {number}
+ */
+function totalPagesOf(totalCount) {
+  return Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 }
 
 function buildExpenseRow(expense) {
@@ -342,12 +375,14 @@ function attachDataAreaListeners(dataArea, container, state) {
         }
         break;
 
-      case 'next-page':
-        if (state.listResult && state.page < state.listResult.totalPages) {
+      case 'next-page': {
+        const totalCount = state.listResult?.pagination?.totalCount ?? 0;
+        if (state.page < totalPagesOf(totalCount)) {
           state.page += 1;
           await loadAndRender(container, state);
         }
         break;
+      }
     }
   });
 }
@@ -371,7 +406,7 @@ async function handleDelete(btn, container, state) {
     toast.show('支出を削除しました', 'success');
 
     // Reload current page (or previous page if the last item was deleted)
-    if (state.listResult?.items.length === 1 && state.page > 1) {
+    if (state.listResult?.data?.length === 1 && state.page > 1) {
       state.page -= 1;
     }
     await loadAndRender(container, state);

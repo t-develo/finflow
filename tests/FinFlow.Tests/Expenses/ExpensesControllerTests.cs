@@ -99,6 +99,54 @@ public class ExpensesControllerTests : IClassFixture<ExpensesTestFixture>
         result.TryGetProperty("data", out var dataElement).Should().BeTrue("response should have 'data' property");
         dataElement.ValueKind.Should().Be(JsonValueKind.Array);
         result.TryGetProperty("pagination", out var paginationElement).Should().BeTrue("response should have 'pagination' property");
+        result.TryGetProperty("totalAmount", out var totalAmountElement).Should().BeTrue("response should have 'totalAmount' property");
+        totalAmountElement.ValueKind.Should().Be(JsonValueKind.Number);
+    }
+
+    [Fact]
+    public async Task GetExpenses_WithNoExpenses_ReturnsZeroTotalAmount()
+    {
+        // Arrange: 支出を1件も登録していない新規ユーザー
+        var client = CreateFreshClient();
+        await SetupAuthAsync(client, $"expenses_empty_total_{Guid.NewGuid():N}@example.com");
+
+        // Act
+        var response = await client.GetAsync("/api/expenses");
+
+        // Assert: totalAmount は null ではなく 0 であること
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        var result = JsonSerializer.Deserialize<JsonElement>(body, JsonOptions);
+        result.GetProperty("totalAmount").GetDecimal().Should().Be(0m);
+    }
+
+    [Fact]
+    public async Task GetExpenses_WithMultipleExpenses_ReturnsSumOfAllMatchingAmounts()
+    {
+        // Arrange
+        var client = CreateFreshClient();
+        await SetupAuthAsync(client, $"expenses_total_{Guid.NewGuid():N}@example.com");
+        var categoryId = await CreateTestCategoryAsync(client);
+
+        foreach (var amount in new[] { 1000m, 2500.50m, 999.50m })
+        {
+            var request = new CreateExpenseRequest
+            {
+                Amount = amount,
+                CategoryId = categoryId,
+                Date = new DateOnly(2026, 3, 8),
+                Description = "合計金額テスト"
+            };
+            await client.PostAsJsonAsync("/api/expenses", request);
+        }
+
+        // Act
+        var response = await client.GetAsync("/api/expenses");
+
+        // Assert: 全件の合計（現在ページ分だけではない）が返ること
+        var body = await response.Content.ReadAsStringAsync();
+        var result = JsonSerializer.Deserialize<JsonElement>(body, JsonOptions);
+        result.GetProperty("totalAmount").GetDecimal().Should().Be(4500.00m);
     }
 
     // =====================================================================
