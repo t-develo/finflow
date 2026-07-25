@@ -99,6 +99,54 @@ public class ExpensesControllerTests : IClassFixture<ExpensesTestFixture>
         result.TryGetProperty("data", out var dataElement).Should().BeTrue("response should have 'data' property");
         dataElement.ValueKind.Should().Be(JsonValueKind.Array);
         result.TryGetProperty("pagination", out var paginationElement).Should().BeTrue("response should have 'pagination' property");
+        result.TryGetProperty("totalAmount", out var totalAmountElement).Should().BeTrue("response should have 'totalAmount' property");
+        totalAmountElement.ValueKind.Should().Be(JsonValueKind.Number);
+    }
+
+    [Fact]
+    public async Task GetExpenses_WithNoExpenses_ReturnsZeroTotalAmount()
+    {
+        // Arrange: 支出を1件も登録していない新規ユーザー
+        var client = CreateFreshClient();
+        await SetupAuthAsync(client, $"expenses_empty_total_{Guid.NewGuid():N}@example.com");
+
+        // Act
+        var response = await client.GetAsync("/api/expenses");
+
+        // Assert: totalAmount は null ではなく 0 であること
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        var result = JsonSerializer.Deserialize<JsonElement>(body, JsonOptions);
+        result.GetProperty("totalAmount").GetDecimal().Should().Be(0m);
+    }
+
+    [Fact]
+    public async Task GetExpenses_WithMultipleExpenses_ReturnsSumOfAllMatchingAmounts()
+    {
+        // Arrange
+        var client = CreateFreshClient();
+        await SetupAuthAsync(client, $"expenses_total_{Guid.NewGuid():N}@example.com");
+        var categoryId = await CreateTestCategoryAsync(client);
+
+        foreach (var amount in new[] { 1000m, 2500.50m, 999.50m })
+        {
+            var request = new CreateExpenseRequest
+            {
+                Amount = amount,
+                CategoryId = categoryId,
+                Date = new DateOnly(2026, 3, 8),
+                Description = "合計金額テスト"
+            };
+            await client.PostAsJsonAsync("/api/expenses", request);
+        }
+
+        // Act
+        var response = await client.GetAsync("/api/expenses");
+
+        // Assert: 全件の合計（現在ページ分だけではない）が返ること
+        var body = await response.Content.ReadAsStringAsync();
+        var result = JsonSerializer.Deserialize<JsonElement>(body, JsonOptions);
+        result.GetProperty("totalAmount").GetDecimal().Should().Be(4500.00m);
     }
 
     // =====================================================================
@@ -218,6 +266,81 @@ public class ExpensesControllerTests : IClassFixture<ExpensesTestFixture>
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    [Fact]
+    public async Task GetExpense_WithCategorySet_ReturnsCategoryColorInResponse()
+    {
+        // Arrange: カテゴリバッジの色分けに使うため、カテゴリの色がレスポンスに含まれる必要がある
+        var client = CreateFreshClient();
+        await SetupAuthAsync(client, $"expenses_catcolor_{Guid.NewGuid():N}@example.com");
+
+        var categoryId = await CreateTestCategoryAsync(client, color: "#FF5733");
+
+        var createRequest = new CreateExpenseRequest
+        {
+            Amount = 1200m,
+            CategoryId = categoryId,
+            Date = new DateOnly(2026, 3, 12),
+            Description = "カテゴリ色確認用"
+        };
+        var createResponse = await client.PostAsJsonAsync("/api/expenses", createRequest);
+        var createdBody = await createResponse.Content.ReadAsStringAsync();
+        var createdExpense = JsonSerializer.Deserialize<JsonElement>(createdBody, JsonOptions);
+        var expenseId = createdExpense.GetProperty("id").GetInt32();
+
+        // Act
+        var response = await client.GetAsync($"/api/expenses/{expenseId}");
+
+        // Assert: レスポンスに categoryColor が含まれ、カテゴリ作成時の色と一致すること
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        var result = JsonSerializer.Deserialize<JsonElement>(body, JsonOptions);
+        result.TryGetProperty("categoryColor", out var categoryColorElement).Should().BeTrue("response should have 'categoryColor' property");
+        categoryColorElement.GetString().Should().Be("#FF5733");
+    }
+
+    [Fact]
+    public async Task GetExpense_WithNoCategoryAssigned_ReturnsNullCategoryColorWithoutError()
+    {
+        // Arrange: CSV自動取込などでカテゴリが未分類（CategoryId = null）のまま
+        // 登録される支出を想定する。API経由ではCategoryIdが必須のため、
+        // DbContextを直接操作して未分類状態を再現する。
+        var client = CreateFreshClient();
+        await SetupAuthAsync(client, $"expenses_nocat_{Guid.NewGuid():N}@example.com");
+
+        var categoryId = await CreateTestCategoryAsync(client);
+
+        var createRequest = new CreateExpenseRequest
+        {
+            Amount = 800m,
+            CategoryId = categoryId,
+            Date = new DateOnly(2026, 3, 13),
+            Description = "未分類化テスト用"
+        };
+        var createResponse = await client.PostAsJsonAsync("/api/expenses", createRequest);
+        var createdBody = await createResponse.Content.ReadAsStringAsync();
+        var createdExpense = JsonSerializer.Deserialize<JsonElement>(createdBody, JsonOptions);
+        var expenseId = createdExpense.GetProperty("id").GetInt32();
+
+        using (var scope = _fixture.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<FinFlowDbContext>();
+            var expense = await dbContext.Expenses.FirstAsync(e => e.Id == expenseId);
+            expense.CategoryId = null;
+            await dbContext.SaveChangesAsync();
+        }
+
+        // Act
+        var response = await client.GetAsync($"/api/expenses/{expenseId}");
+
+        // Assert: 例外にならず200が返り、categoryColor/categoryName はnullであること
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        var result = JsonSerializer.Deserialize<JsonElement>(body, JsonOptions);
+        result.TryGetProperty("categoryColor", out var categoryColorElement).Should().BeTrue("response should have 'categoryColor' property");
+        categoryColorElement.ValueKind.Should().Be(JsonValueKind.Null);
+        result.GetProperty("categoryName").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
     // =====================================================================
     // 支出更新テスト
     // =====================================================================
@@ -322,12 +445,12 @@ public class ExpensesControllerTests : IClassFixture<ExpensesTestFixture>
             new AuthenticationHeaderValue("Bearer", body!.Token);
     }
 
-    private static async Task<int> CreateTestCategoryAsync(HttpClient client, string? name = null)
+    private static async Task<int> CreateTestCategoryAsync(HttpClient client, string? name = null, string color = "#123456")
     {
         var request = new CreateCategoryRequest
         {
             Name = name ?? $"テストカテゴリ_{Guid.NewGuid():N}",
-            Color = "#123456"
+            Color = color
         };
         var response = await client.PostAsJsonAsync("/api/categories", request);
         var body = await response.Content.ReadAsStringAsync();

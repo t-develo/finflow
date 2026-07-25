@@ -32,3 +32,8 @@ Thumbs.db
 # Test results
 TestResults/
 coverage/
+
+# E2E test toolchain (Playwright) — see package.json / playwright.config.js
+node_modules/
+playwright-report/
+test-results/

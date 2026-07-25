@@ -265,15 +265,132 @@ public class ExpenseServiceTests
     }
 
     // =====================================================================
+    // SumExpensesAsync のテスト
+    // =====================================================================
+
+    [Fact]
+    public async Task SumExpensesAsync_WithMultipleExpenses_ReturnsCorrectTotal()
+    {
+        // Arrange
+        _dbContext.Expenses.AddRange(
+            CreateExpense(TestUserId, 1000m, new DateOnly(2026, 3, 1)),
+            CreateExpense(TestUserId, 2500.50m, new DateOnly(2026, 3, 2)),
+            CreateExpense(TestUserId, 999.50m, new DateOnly(2026, 3, 3))
+        );
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        var total = await _service.SumExpensesAsync(TestUserId);
+
+        // Assert
+        total.Should().Be(4500.00m);
+    }
+
+    [Fact]
+    public async Task SumExpensesAsync_WithOtherUsersExpenses_ExcludesThemFromTotal()
+    {
+        // Arrange: 他ユーザーの支出が合計に混ざらないこと（UserId分離）
+        var otherUserId = "other-user-999";
+        _dbContext.Expenses.AddRange(
+            CreateExpense(TestUserId, 1000m, new DateOnly(2026, 3, 1)),
+            CreateExpense(TestUserId, 2000m, new DateOnly(2026, 3, 2)),
+            CreateExpense(otherUserId, 999999m, new DateOnly(2026, 3, 3))
+        );
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        var total = await _service.SumExpensesAsync(TestUserId);
+
+        // Assert: 自ユーザーの2件分のみが合計される
+        total.Should().Be(3000m);
+    }
+
+    [Fact]
+    public async Task SumExpensesAsync_WithDateFilter_SumsOnlyMatchingExpenses()
+    {
+        // Arrange
+        _dbContext.Expenses.AddRange(
+            CreateExpense(TestUserId, 1000m, new DateOnly(2026, 1, 15)),
+            CreateExpense(TestUserId, 2000m, new DateOnly(2026, 3, 5)),
+            CreateExpense(TestUserId, 3000m, new DateOnly(2026, 3, 20))
+        );
+        await _dbContext.SaveChangesAsync();
+
+        var filter = new ExpenseFilter
+        {
+            From = new DateOnly(2026, 3, 1),
+            To = new DateOnly(2026, 3, 31)
+        };
+
+        // Act
+        var total = await _service.SumExpensesAsync(TestUserId, filter);
+
+        // Assert: 3月分（2000+3000）のみが合計される
+        total.Should().Be(5000m);
+    }
+
+    [Fact]
+    public async Task SumExpensesAsync_WithCategoryFilter_SumsOnlyMatchingCategory()
+    {
+        // Arrange
+        _dbContext.Expenses.AddRange(
+            CreateExpense(TestUserId, 1000m, new DateOnly(2026, 3, 1), categoryId: 1),
+            CreateExpense(TestUserId, 2000m, new DateOnly(2026, 3, 2), categoryId: 2),
+            CreateExpense(TestUserId, 3000m, new DateOnly(2026, 3, 3), categoryId: 1)
+        );
+        await _dbContext.SaveChangesAsync();
+
+        var filter = new ExpenseFilter { CategoryId = 1 };
+
+        // Act
+        var total = await _service.SumExpensesAsync(TestUserId, filter);
+
+        // Assert: カテゴリ1（1000+3000）のみが合計される
+        total.Should().Be(4000m);
+    }
+
+    [Fact]
+    public async Task SumExpensesAsync_WithPagingFilter_IgnoresPagingAndSumsAllMatchingRows()
+    {
+        // Arrange: ページングは合計金額の集計に影響してはならない
+        // （2ページ目以降で現在ページ分だけを合計すると嘘の金額になるため）
+        _dbContext.Expenses.AddRange(
+            CreateExpense(TestUserId, 100m, new DateOnly(2026, 3, 1)),
+            CreateExpense(TestUserId, 200m, new DateOnly(2026, 3, 2)),
+            CreateExpense(TestUserId, 300m, new DateOnly(2026, 3, 3))
+        );
+        await _dbContext.SaveChangesAsync();
+
+        var filter = new ExpenseFilter { Page = 1, PageSize = 1 };
+
+        // Act
+        var total = await _service.SumExpensesAsync(TestUserId, filter);
+
+        // Assert: ページサイズ1でも全3件（600）が合計されること
+        total.Should().Be(600m);
+    }
+
+    [Fact]
+    public async Task SumExpensesAsync_WithNoExpenses_ReturnsZero()
+    {
+        // Act: 支出が1件も存在しない状態
+        var total = await _service.SumExpensesAsync(TestUserId);
+
+        // Assert: null ではなく 0 が返ること
+        total.Should().Be(0m);
+    }
+
+    // =====================================================================
     // ヘルパー
     // =====================================================================
 
-    private static Expense CreateExpense(string userId, decimal amount, DateOnly date) =>
+    private static Expense CreateExpense(string userId, decimal amount, DateOnly date, int? categoryId = null) =>
         new()
         {
             UserId = userId,
             Amount = amount,
             Date = date,
+            CategoryId = categoryId,
             Description = "テスト支出",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow

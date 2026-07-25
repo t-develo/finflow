@@ -39,6 +39,7 @@ public class ExpenseResponse
     public decimal Amount { get; set; }
     public int? CategoryId { get; set; }
     public string? CategoryName { get; set; }
+    public string? CategoryColor { get; set; }
     public DateOnly Date { get; set; }
     public string Description { get; set; } = string.Empty;
     public string? Memo { get; set; }

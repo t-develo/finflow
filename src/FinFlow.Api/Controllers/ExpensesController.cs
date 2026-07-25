@@ -46,12 +46,18 @@ public class ExpensesController : ControllerBase
             PageSize = pageSize
         };
 
-        var expensesTask = _expenseService.GetExpensesAsync(userId, filter);
-        var countTask = _expenseService.CountExpensesAsync(userId, filter);
-        await Task.WhenAll(expensesTask, countTask);
-
-        var expenseList = expensesTask.Result.ToList();
-        var totalCount = countTask.Result;
+        // 注意: 以下は同一の DbContext インスタンス（スコープドサービス）に対する
+        // クエリのため、Task.WhenAll による並列実行は行わない。EF Core の
+        // DbContext はスレッドセーフではなく、同一コンテキストへの並行クエリは
+        // "A second operation started on this context before a previous
+        // operation completed" 例外を招く可能性がある（InMemory プロバイダでは
+        // 表面化しないことがあるが、SQL Server 等の実プロバイダでは本番障害になりうる）。
+        // そのため逐次 await する。
+        var expenseList = (await _expenseService.GetExpensesAsync(userId, filter)).ToList();
+        var totalCount = await _expenseService.CountExpensesAsync(userId, filter);
+        // フィルタ条件に一致する全件（現在ページ分のみではない）の合計金額。
+        // ページングとは独立した集計のため、pagination とは別の並びのフィールドとする。
+        var totalAmount = await _expenseService.SumExpensesAsync(userId, filter);
 
         // S2-A-004: ページネーションメタデータをレスポンスに含める
         var response = new
@@ -64,7 +70,8 @@ public class ExpensesController : ControllerBase
                 totalCount,
                 // 次ページの存在チェック
                 hasNextPage = (page * pageSize) < totalCount
-            }
+            },
+            totalAmount
         };
         return Ok(response);
     }
@@ -179,6 +186,7 @@ public class ExpensesController : ControllerBase
             Amount = expense.Amount,
             CategoryId = expense.CategoryId,
             CategoryName = expense.Category?.Name,
+            CategoryColor = expense.Category?.Color,
             Date = expense.Date,
             Description = expense.Description ?? string.Empty,
             CreatedAt = expense.CreatedAt,

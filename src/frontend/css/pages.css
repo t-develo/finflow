@@ -1,0 +1,584 @@
+/* ============================================================
+   FinFlow CSS - pages.css
+   ------------------------------------------------------------
+   各ページ固有のレイアウト・BEMクラス。components.css の汎用
+   コンポーネント（.modal, .badge, .empty-state 等）を組み合わせて
+   使う画面別の未定義クラスをここで補完する。
+   main.css の :root カスタムプロパティを使用し、色のハードコードは
+   避ける。メディアクエリは各コンポーネント定義の直下に併記する。
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   認証系（/login, /register）
+   ------------------------------------------------------------ */
+.auth-layout {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-lg);
+  background-color: var(--color-bg);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 400px;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-md);
+  padding: var(--spacing-xl);
+}
+
+.auth-card__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  margin-bottom: var(--spacing-lg);
+}
+
+.auth-card__title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--color-text);
+  margin-bottom: var(--spacing-lg);
+}
+
+.auth-card__footer {
+  margin-top: var(--spacing-lg);
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.auth-card__footer a {
+  color: var(--color-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.auth-card__footer a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 480px) {
+  .auth-card {
+    padding: var(--spacing-lg);
+  }
+}
+
+/* タップ領域確保: テキスト行内のリンクは既定では行の高さのままで
+   44px に満たないため、inline-flex 化して最小高さを持たせる。
+   main.css の .btn/.btn--sm と同じ「モバイル時のみ拡大」方針に合わせ、
+   このメディアクエリ内に限定する（デスクトップの見た目は変えない）。 */
+@media (max-width: 768px) {
+  .auth-card__footer a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 var(--spacing-xs);
+  }
+}
+
+/* ------------------------------------------------------------
+   ダッシュボード（/, /dashboard）
+   ------------------------------------------------------------
+   main.css にはモバイル用の `grid-template-columns: 1fr !important`
+   しか無く、ベース（デスクトップ）の display:grid と列数指定が
+   欠落していたため、実質1カラム縦積みになっていた。
+   ------------------------------------------------------------ */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-lg);
+}
+
+.dashboard-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.dashboard-card--wide {
+  grid-column: 1 / -1;
+}
+
+.dashboard-card__label {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.dashboard-card__value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.dashboard-card__change {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+/* 支出額の前月比: 増加(増える)は警戒色、減少は良化色 */
+.dashboard-card__change--increase {
+  color: var(--color-danger);
+}
+
+.dashboard-card__change--decrease {
+  color: var(--color-success);
+}
+
+.dashboard-card__footer {
+  margin-top: var(--spacing-sm);
+}
+
+.dashboard-chart {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.dashboard-chart canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+.dashboard-chart__legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  width: 100%;
+}
+
+.dashboard-chart__legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) 0;
+  font-size: 0.8125rem;
+}
+
+.dashboard-chart__legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dashboard-chart__legend-name {
+  flex: 1;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-chart__legend-amount {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.dashboard-chart__legend-pct {
+  font-weight: 600;
+  min-width: 3em;
+  text-align: right;
+}
+
+/* Chart.js が読み込めない場合のフォールバックリスト */
+.category-breakdown {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  width: 100%;
+}
+
+.category-breakdown__item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) 0;
+  font-size: 0.8125rem;
+}
+
+.category-breakdown__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.category-breakdown__name {
+  flex: 1;
+}
+
+.category-breakdown__pct {
+  font-weight: 600;
+  min-width: 3em;
+  text-align: right;
+}
+
+.category-breakdown__amount {
+  color: var(--color-text-muted);
+  min-width: 5em;
+  text-align: right;
+}
+
+/* ------------------------------------------------------------
+   支出一覧（/expenses）
+   ------------------------------------------------------------
+   main.css は `.filter-bar { flex-wrap: wrap; }` をモバイル用
+   メディアクエリ内にしか持たず、ベース（デスクトップ）の
+   display:flex が無かったため、flex-wrap 指定自体が無効化されて
+   おり、2つのフィルター項目が縦積みになっていた。
+   ------------------------------------------------------------ */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.filter-bar__item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.filter-bar__label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.filter-bar__select {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  font-size: 0.875rem;
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}
+
+@media (max-width: 768px) {
+  /* iOSズーム防止: #filter-year-month / #filter-category は
+     form-input/form__input 系クラスを持たず、.form-group の
+     子孫でもないため、既存のモバイル用タッチターゲット規則
+     （main.css:600付近）が一切当たっていなかった。 */
+  .filter-bar__select {
+    min-height: 44px;
+    font-size: 1rem;
+  }
+
+  .filter-bar__item {
+    width: 100%;
+  }
+}
+
+.category-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: 0.875rem;
+}
+
+.category-badge__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ------------------------------------------------------------
+   CSV取込（/expenses/import）
+   ------------------------------------------------------------ */
+.csv-import {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.csv-import__description {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.csv-import__drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  border: 2px dashed var(--color-border);
+  border-radius: var(--border-radius);
+  padding: var(--spacing-xl) var(--spacing-lg);
+  text-align: center;
+  background-color: var(--color-bg);
+  transition: border-color 0.2s, background-color 0.2s;
+  /* 2026-07 更新: js/pages/csv-import-page.js にドロップゾーン自体への
+     click ハンドラが追加され、タップ/クリックで隠し input[type=file] の
+     ファイル選択ダイアログが実際に開くようになった（実機のタッチ
+     エミュレーションで filechooser が1回だけ発火することを確認済み）。
+     以前は「クリックしても何も起きないため cursor:default にする」という
+     コメントだったが、その前提が崩れているため cursor:pointer に変更し、
+     コメントも現状に合わせて更新する。 */
+  cursor: pointer;
+}
+
+.csv-import__drop-zone--active {
+  border-color: var(--color-primary);
+  background-color: rgba(59, 130, 246, 0.05);
+}
+
+.csv-import__drop-icon {
+  color: var(--color-text-muted);
+}
+
+.csv-import__drop-text {
+  font-size: 0.9375rem;
+  color: var(--color-text);
+}
+
+.csv-import__drop-hint {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+/* ネイティブ file input は #file-select-btn の click() 経由でのみ
+   使われるため、視覚的に隠しつつクリック可能な状態を維持する
+   （main.css の .table thead と同じ視覚的非表示テクニック） */
+.csv-import__file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.csv-import__file-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background-color: var(--color-bg);
+  border-radius: var(--border-radius);
+  flex-wrap: wrap;
+}
+
+.csv-import__file-name {
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.csv-import__file-size {
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+
+.csv-import__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.csv-import__progress {
+  padding: var(--spacing-md) 0;
+}
+
+.csv-import__error-details {
+  margin-top: var(--spacing-sm);
+  font-size: 0.8125rem;
+}
+
+.csv-import__error-list {
+  margin-top: var(--spacing-xs);
+  padding-left: var(--spacing-lg);
+}
+
+.csv-import__result-actions {
+  margin-top: var(--spacing-md);
+}
+
+/* タップ領域確保: clear-file-btn / 「支出一覧を確認」は .btn--sm
+   (36px, main.css デスクトップ既定) のままだと44pxに満たない。
+   main.css の .btn/.btn--sm と同じ「モバイル時のみ拡大」方針に合わせ、
+   このメディアクエリ内に限定する（デスクトップの見た目は変えない）。
+   min-height はモバイル時 main.css の .btn--sm が既に44pxにするため、
+   ここでは重複させず min-width のみを補う。 */
+@media (max-width: 768px) {
+  .csv-import .btn--sm {
+    min-width: 44px;
+  }
+}
+
+.alert--warning {
+  background-color: var(--color-warning-bg);
+  border: 1px solid var(--color-warning-border);
+  color: var(--color-warning-text);
+}
+
+/* ------------------------------------------------------------
+   サブスクリプション（/subscriptions）
+   ------------------------------------------------------------ */
+.subscription-summary {
+  margin-bottom: var(--spacing-lg);
+}
+
+.subscription-summary__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  max-width: 320px;
+}
+
+.subscription-summary__label {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.subscription-summary__value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* ------------------------------------------------------------
+   カテゴリ管理（/categories）
+   ------------------------------------------------------------ */
+.category-add-form {
+  margin-bottom: var(--spacing-lg);
+}
+
+.category-form {
+  display: block;
+}
+
+.category-form__fields {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.category-form__fields .form__group {
+  margin-bottom: 0;
+  flex: 1 1 200px;
+  min-width: 150px;
+}
+
+.category-form__color-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.category-form__color-preview {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.category-form__actions {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 768px) {
+  .category-form__fields {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .category-form__fields .form__group {
+    flex: 1 1 auto;
+  }
+}
+
+.category-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.category-list__item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  flex-wrap: wrap;
+}
+
+.category-list__item--readonly {
+  background-color: var(--color-bg);
+  color: var(--color-text-muted);
+}
+
+.category-list__dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.category-list__name {
+  flex: 1;
+}
+
+.category-list__name--view {
+  font-size: 0.9375rem;
+}
+
+.category-list__actions {
+  display: flex;
+  gap: var(--spacing-xs);
+  margin-left: auto;
+}
+
+.category-list__confirm-text {
+  flex: 1 1 100%;
+  font-size: 0.875rem;
+  color: var(--color-text);
+}
+
+.category-edit-form {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+/* タップ領域確保: 編集/削除ボタンは .btn--ghost.btn--sm (36px, デスクトップ既定)
+   のままだと44pxに満たない。main.css の .btn/.btn--sm と同じ
+   「モバイル時のみ拡大」方針に合わせ、このメディアクエリ内に限定する
+   （デスクトップの見た目は変えない）。min-height はモバイル時 main.css
+   の .btn が既に44pxにするため、ここでは重複させず min-width のみを補う。 */
+@media (max-width: 768px) {
+  .category-list__actions .btn,
+  .category-edit-form .btn {
+    min-width: 44px;
+  }
+}
+
+.category-edit-form__actions {
+  display: flex;
+  gap: var(--spacing-xs);
+  margin-left: auto;
+}
+
+.form__input--inline {
+  flex: 1;
+  min-width: 120px;
+}

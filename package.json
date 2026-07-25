@@ -1,0 +1,12 @@
+{
+  "name": "finflow-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FinFlow mobile touch regression E2E test suite (Playwright). Test-only tooling; does not affect the app build.",
+  "scripts": {
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1"
+  }
+}

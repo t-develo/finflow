@@ -35,6 +35,16 @@ router
   .on('/expenses/import', (container) => {
     renderCsvImportPage(container);
   })
+  .on('/expenses/new', (container) => {
+    renderExpenseFormPage(container, { mode: 'create' }).catch((err) => {
+      console.error('[app] Failed to render expense form (create)', err);
+    });
+  })
+  .on('/expenses/:id/edit', (container, params) => {
+    renderExpenseFormPage(container, { mode: 'edit', expenseId: params.id }).catch((err) => {
+      console.error('[app] Failed to render expense form (edit)', err);
+    });
+  })
   .on('/subscriptions', (container) => {
     renderSubscriptionPage(container);
   })
@@ -70,6 +80,10 @@ function openSidebar() {
   hamburgerBtn?.setAttribute('aria-expanded', 'true');
   hamburgerBtn?.setAttribute('aria-label', 'メニューを閉じる');
   hamburgerBtn?.classList.add('hamburger-btn--open');
+  // Prevent the page behind the drawer from scrolling while it's open.
+  // CSS owner: needs `.body--drawer-open { overflow: hidden; }` (or
+  // equivalent) — see hand-off note in the task report.
+  document.body.classList.add('body--drawer-open');
 }
 
 function closeSidebar() {
@@ -79,6 +93,7 @@ function closeSidebar() {
   hamburgerBtn?.setAttribute('aria-expanded', 'false');
   hamburgerBtn?.setAttribute('aria-label', 'メニューを開く');
   hamburgerBtn?.classList.remove('hamburger-btn--open');
+  document.body.classList.remove('body--drawer-open');
 }
 
 hamburgerBtn?.addEventListener('click', () => {
@@ -123,15 +138,11 @@ function updateHamburgerVisibility(isAuthPage) {
   }
 }
 
-// Hook into router events by observing sidebar class changes via a
-// MutationObserver so we don't need to modify router.js.
-const sidebarObserver = new MutationObserver(() => {
-  const isSidebarHidden = sidebar?.classList.contains('sidebar--hidden');
-  updateHamburgerVisibility(isSidebarHidden);
+// router.js notifies us of every route change (see router.onRouteChange in
+// router.js) so we can keep the hamburger button in sync explicitly,
+// instead of inferring it indirectly from sidebar class mutations.
+router.onRouteChange((isAuthPage) => {
+  updateHamburgerVisibility(isAuthPage);
 });
-
-if (sidebar) {
-  sidebarObserver.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
-}
 
 router.start();
