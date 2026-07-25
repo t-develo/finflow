@@ -79,10 +79,16 @@ module.exports = defineConfig({
     },
     {
       // Desktop regression guard: confirms the hit-test sweep and the
-      // console/layout checks still pass on a normal desktop viewport
-      // (no touch context, so tap()-based specs are excluded here).
+      // console/layout checks still pass on a normal desktop viewport.
+      // `hasTouch: true` is added on top of the stock "Desktop Chrome"
+      // device (which otherwise has no touch support) purely so the
+      // shared login helper's locator.tap() calls work here too --
+      // desktop viewport/scale are unaffected. Screens that require
+      // login still exercise the exact same tap-based flow as the mobile
+      // projects; only the mobile-only drawer/hamburger specs are
+      // excluded here via testMatch.
       name: 'desktop-chromium-regression',
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], hasTouch: true },
       testMatch: [
         '**/hit-test-regression.spec.js',
         '**/console-and-layout.spec.js',

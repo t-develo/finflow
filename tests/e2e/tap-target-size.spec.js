@@ -61,10 +61,34 @@ for (const screen of buildScreens()) {
           return rect.width > 0 && rect.height > 0;
         }
 
+        // Same reasoning as helpers/hit-test.js (duplicated here because
+        // page.evaluate() serializes only the exact function passed in --
+        // it cannot close over code from another module):
+        //  - `aria-hidden="true"` marks an element as intentionally
+        //    non-interactive (e.g. the visually-tiny native
+        //    `<input type="file">` in csv-import-page.js, whose real tap
+        //    target is the visible "ファイルを選択" button next to it).
+        //  - While a true modal dialog is open, only its own controls are
+        //    reachable; background controls (e.g. the hamburger button)
+        //    are intentionally inert until the modal closes.
+        function hasAriaHiddenSelfOrAncestor(el) {
+          let node = el;
+          while (node && node.nodeType === 1) {
+            if (node.getAttribute && node.getAttribute('aria-hidden') === 'true') return true;
+            node = node.parentElement;
+          }
+          return false;
+        }
+
+        const openModal = Array.from(
+          document.querySelectorAll('[aria-modal="true"], [role="dialog"]')
+        ).find(isRenderedVisible);
+        const searchRoot = openModal || document;
+
         const results = [];
-        const elements = Array.from(document.querySelectorAll(selector)).filter(
-          isRenderedVisible
-        );
+        const elements = Array.from(searchRoot.querySelectorAll(selector))
+          .filter(isRenderedVisible)
+          .filter((el) => !hasAriaHiddenSelfOrAncestor(el));
 
         for (const el of elements) {
           const isAllowlisted = allowlistSelectors.some((sel) => {
@@ -89,11 +113,37 @@ for (const screen of buildScreens()) {
             rect.top < window.innerHeight;
           if (!intersectsViewport) continue;
 
-          if (rect.width < minSize || rect.height < minSize) {
+          let effectiveRect = rect;
+
+          // A checkbox/radio's *own* box is often small by native
+          // rendering, but if it's associated with a <label> (wrapping it,
+          // or via for=id) that is itself large enough, the real tap
+          // target a user interacts with is the whole label (native
+          // browser behavior: clicking anywhere on the label toggles the
+          // control).
+          if (
+            (rect.width < minSize || rect.height < minSize) &&
+            el.tagName === 'INPUT' &&
+            (el.type === 'checkbox' || el.type === 'radio')
+          ) {
+            const wrappingLabel = el.closest('label');
+            const forLabel = el.id
+              ? document.querySelector(`label[for="${window.CSS.escape(el.id)}"]`)
+              : null;
+            const label = wrappingLabel || forLabel;
+            if (label) {
+              const labelRect = label.getBoundingClientRect();
+              if (labelRect.width >= minSize && labelRect.height >= minSize) {
+                effectiveRect = labelRect;
+              }
+            }
+          }
+
+          if (effectiveRect.width < minSize || effectiveRect.height < minSize) {
             results.push({
               element: describe(el),
-              width: Math.round(rect.width * 10) / 10,
-              height: Math.round(rect.height * 10) / 10,
+              width: Math.round(effectiveRect.width * 10) / 10,
+              height: Math.round(effectiveRect.height * 10) / 10,
             });
           }
         }

@@ -96,9 +96,40 @@ async function findHitTestFailures(page) {
       return true;
     }
 
-    const candidates = Array.from(document.querySelectorAll(selector)).filter(
-      isRenderedVisible
-    );
+    /**
+     * `aria-hidden="true"` (on the element itself or an ancestor) is an
+     * explicit, unambiguous author declaration that the element is not
+     * meant to be exposed for interaction -- e.g. csv-import-page.js's
+     * native `<input type="file">` is deliberately `aria-hidden="true"`
+     * and visually tiny, with the *visible* "ファイルを選択" button as the
+     * real, intended tap target that triggers it programmatically. Testing
+     * such elements as if a user were meant to tap them directly would be
+     * testing the wrong thing.
+     */
+    function hasAriaHiddenSelfOrAncestor(el) {
+      let node = el;
+      while (node && node.nodeType === 1) {
+        if (node.getAttribute && node.getAttribute('aria-hidden') === 'true') return true;
+        node = node.parentElement;
+      }
+      return false;
+    }
+
+    // If a true modal dialog (`aria-modal="true"` or `role="dialog"`) is
+    // currently open, only its own controls are meant to be reachable --
+    // by definition, a modal dialog blocks interaction with the rest of
+    // the page. Without this, opening e.g. the subscription modal would
+    // make this sweep incorrectly flag the (intentionally inert) "+ 新規追加"
+    // button and hamburger menu behind it as "blocked by an overlay", when
+    // that's the whole point of a modal.
+    const openModal = Array.from(
+      document.querySelectorAll('[aria-modal="true"], [role="dialog"]')
+    ).find(isRenderedVisible);
+    const searchRoot = openModal || document;
+
+    const candidates = Array.from(searchRoot.querySelectorAll(selector))
+      .filter(isRenderedVisible)
+      .filter((el) => !hasAriaHiddenSelfOrAncestor(el));
 
     const failures = [];
 
