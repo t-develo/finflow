@@ -13,6 +13,16 @@
   --color-text: #111827;
   --color-text-muted: #6B7280;
 
+  /* Tint tokens for badges / alerts / modifiers (components.css, pages.css) */
+  --color-success-bg: #F0FDF4;
+  --color-success-border: #BBF7D0;
+  --color-danger-bg: #FEF2F2;
+  --color-danger-border: #FECACA;
+  --color-warning-bg: #FFFBEB;
+  --color-warning-border: #FDE68A;
+  --color-warning-text: #92400E;
+  --color-muted-bg: #F3F4F6;
+
   --sidebar-width: 240px;
   --header-height: 60px;
 
@@ -61,6 +71,8 @@ body {
 #app {
   display: flex;
   min-height: 100vh;
+  /* iOS Safari のツールバー変動に対応（動的ビューポート高さ） */
+  min-height: 100dvh;
 }
 
 .sidebar {
@@ -73,6 +85,8 @@ body {
   top: 0;
   left: 0;
   height: 100vh;
+  /* iOS Safari のツールバー変動に対応（動的ビューポート高さ） */
+  height: 100dvh;
   z-index: 100;
   transition: transform 0.3s ease;
 }
@@ -141,6 +155,8 @@ body {
   margin-left: var(--sidebar-width);
   padding: var(--spacing-lg);
   min-height: 100vh;
+  /* iOS Safari のツールバー変動に対応（動的ビューポート高さ） */
+  min-height: 100dvh;
 }
 
 .main-content--full {
@@ -645,6 +661,10 @@ body {
     margin: 0 !important;
     border-radius: 0 !important;
     min-height: 100vh;
+    /* iOS Safari のツールバー変動に対応（動的ビューポート高さ） */
+    min-height: 100dvh;
+    max-height: 100vh;
+    max-height: 100dvh;
   }
 
   /* Filter bar: wrap */
