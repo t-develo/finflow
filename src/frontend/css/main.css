@@ -33,6 +33,23 @@
   padding: 0;
 }
 
+/* ============================================================
+   [hidden] グローバルガード
+   ------------------------------------------------------------
+   UA スタイルシートの `[hidden] { display: none }` は同じ詳細度
+   (0,0,1,0) の作成者スタイル（`.btn{display:inline-flex}` 等）に
+   カスケード上の優先順位（origin）で負ける。そのため `hidden`
+   属性を持つ要素に `display` を宣言するクラスが1つでも付くと、
+   `hidden` が無視されて要素が表示されたままになる
+   （例: 新規作成モーダルの削除ボタン、常時表示されるバリデーション
+   エラー、認証画面のハンバーガーボタン等）。
+   `!important` で明示的に UA より優先させ、`hidden` 属性を
+   常に最優先の非表示手段として機能させる。
+   ============================================================ */
+[hidden] {
+  display: none !important;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background-color: var(--color-bg);
@@ -447,11 +464,18 @@ body {
   background-color: rgba(0, 0, 0, 0.4);
   z-index: 90;
   opacity: 0;
+  /* opacity:0 だけではヒットテストが無効化されず、モバイル幅では
+     常時透明な全画面シャッターとして最前面(z-index:90)に居座り、
+     配下の入力欄・リンク・ハンバーガーへの全タップを吸い込んでしまう。
+     非表示時は pointer-events:none でクリックを透過させ、
+     表示時のみ auto に戻す（ff-toast/ff-confirm-dialog と同じ規約）。 */
+  pointer-events: none;
   transition: opacity 0.3s ease;
 }
 
 .sidebar-overlay--visible {
   opacity: 1;
+  pointer-events: auto;
 }
 
 /* ============================================================
