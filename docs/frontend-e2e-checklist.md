@@ -234,6 +234,7 @@ HTTP のみ。`Program.cs` の `UseHttpsRedirection()` が有効なため HTTPS 
 | `sidebar-navigation.spec.js` | 認証後の画面（モバイル幅） | ハンバーガーボタンのタップでサイドバー開閉、オーバーレイタップで閉じる、ナビリンクタップで遷移かつサイドバーが閉じる、開閉を繰り返しても状態が一貫すること |
 | `hidden-attribute.spec.js` | サブスクモーダル、`/login` | `hidden` 属性を持つ要素が実際に `toBeHidden()`（computed style 由来）であること。具体的にはサブスク新規作成時の削除ボタン、編集時に表示される削除ボタン、`/login` のハンバーガーボタン |
 | `csv-import-touch.spec.js` | `/expenses/import` | 「ファイル選択」ボタンがオーバーレイに覆われずタップ可能であること、ファイル選択後にアップロードボタンが有効化されインポート結果が表示されること、結果画面から支出一覧への遷移とインポート結果の反映。**注意**: drag&drop はタッチデバイスに相当ジェスチャーが無いため意図的にテスト対象外（ファイル選択ボタン経由の経路のみ検証） |
+| `modal-and-scroll-lock.spec.js` | サブスクリプション追加モーダル（開いた状態）、認証後の画面（モバイル幅、ドロワー開閉） | (1) 画面高を 390x480 まで下げてもサブスクモーダルのフッター（閉じる・キャンセル・保存ボタン）が `boundingBox()` 上でビューポート内に収まり続けること、および `hit-test-regression.spec.js` の判定ロジック（`findHitTestFailures`）をモーダル内に限定して再利用し他要素に覆われていないことを確認、さらにキャンセルボタンへの実タップでモーダルが閉じることも検証。(2) ハンバーガーボタンでモバイルドロワーを開いた際、`body` に `body--drawer-open` クラスと `overflow: hidden` が付与されるだけでなく、実際に `page.mouse.wheel()` でホイール操作を送っても `window.scrollY` が変化しないことを検証し、ドロワーを閉じると `overflow` が復帰し再びスクロールできることも確認 |
 
 `helpers/screens.js` が定義する画面一覧（`hit-test-regression`/`tap-target-size`/`console-and-layout` が横断的にスイープする対象）:
 ログイン画面、新規登録画面、ダッシュボード画面、支出一覧画面、支出追加フォーム画面（`/expenses/new`）、
