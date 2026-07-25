@@ -57,13 +57,7 @@
   color: var(--color-text-muted);
 }
 
-/* タップ領域確保: テキスト行内のリンクは既定では行の高さのままで
-   44px に満たないため、inline-flex 化して最小高さを持たせる */
 .auth-card__footer a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  padding: 0 var(--spacing-xs);
   color: var(--color-primary);
   font-weight: 600;
   text-decoration: none;
@@ -76,6 +70,19 @@
 @media (max-width: 480px) {
   .auth-card {
     padding: var(--spacing-lg);
+  }
+}
+
+/* タップ領域確保: テキスト行内のリンクは既定では行の高さのままで
+   44px に満たないため、inline-flex 化して最小高さを持たせる。
+   main.css の .btn/.btn--sm と同じ「モバイル時のみ拡大」方針に合わせ、
+   このメディアクエリ内に限定する（デスクトップの見た目は変えない）。 */
+@media (max-width: 768px) {
+  .auth-card__footer a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 var(--spacing-xs);
   }
 }
 
@@ -401,11 +408,15 @@
 }
 
 /* タップ領域確保: clear-file-btn / 「支出一覧を確認」は .btn--sm
-   (36px, main.css) のままだと44pxに満たないため、この画面内に
-   限定して上書きする */
-.csv-import .btn--sm {
-  min-height: 44px;
-  min-width: 44px;
+   (36px, main.css デスクトップ既定) のままだと44pxに満たない。
+   main.css の .btn/.btn--sm と同じ「モバイル時のみ拡大」方針に合わせ、
+   このメディアクエリ内に限定する（デスクトップの見た目は変えない）。
+   min-height はモバイル時 main.css の .btn--sm が既に44pxにするため、
+   ここでは重複させず min-width のみを補う。 */
+@media (max-width: 768px) {
+  .csv-import .btn--sm {
+    min-width: 44px;
+  }
 }
 
 .alert--warning {
@@ -535,13 +546,6 @@
   margin-left: auto;
 }
 
-/* タップ領域確保: 編集/削除ボタンは .btn--ghost.btn--sm (36px) の
-   ままだと44pxに満たないため、このコンテナ内に限定して上書きする */
-.category-list__actions .btn {
-  min-height: 44px;
-  min-width: 44px;
-}
-
 .category-list__confirm-text {
   flex: 1 1 100%;
   font-size: 0.875rem;
@@ -556,9 +560,16 @@
   width: 100%;
 }
 
-.category-edit-form .btn {
-  min-height: 44px;
-  min-width: 44px;
+/* タップ領域確保: 編集/削除ボタンは .btn--ghost.btn--sm (36px, デスクトップ既定)
+   のままだと44pxに満たない。main.css の .btn/.btn--sm と同じ
+   「モバイル時のみ拡大」方針に合わせ、このメディアクエリ内に限定する
+   （デスクトップの見た目は変えない）。min-height はモバイル時 main.css
+   の .btn が既に44pxにするため、ここでは重複させず min-width のみを補う。 */
+@media (max-width: 768px) {
+  .category-list__actions .btn,
+  .category-edit-form .btn {
+    min-width: 44px;
+  }
 }
 
 .category-edit-form__actions {

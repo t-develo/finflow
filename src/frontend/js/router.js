@@ -8,7 +8,10 @@ const routes = new Map();
 // "/expenses/new" never falls through to a pattern like "/expenses/:id/edit".
 const patternRoutes = [];
 
-let routeChangeListener = null;
+// Array (not a single variable) so multiple independent subscribers can
+// each register their own onRouteChange() callback without one silently
+// overwriting another's registration.
+const routeChangeListeners = [];
 
 /**
  * Convert a route template ("/expenses/:id/edit") into a RegExp plus the
@@ -70,9 +73,7 @@ function handleRoute(path) {
     updateActiveLink(path);
   }
 
-  if (routeChangeListener) {
-    routeChangeListener(isAuthPage);
-  }
+  routeChangeListeners.forEach((listener) => listener(isAuthPage));
 
   const matched = matchRoute(path);
   const handler = matched ? matched.handler : routes.get('*');
@@ -105,9 +106,13 @@ export const router = {
    * `isAuthPage` (true for /login, /register). Used by app.js to keep
    * layout chrome (e.g. the hamburger button) in sync with routing
    * without router.js needing to know about layout elements.
+   *
+   * Multiple calls each add an independent listener (all are invoked, in
+   * registration order) rather than the later call replacing the earlier
+   * one.
    */
   onRouteChange(callback) {
-    routeChangeListener = callback;
+    routeChangeListeners.push(callback);
   },
 
   start() {

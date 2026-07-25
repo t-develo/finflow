@@ -579,6 +579,33 @@ body {
     display: block;
   }
 
+  /* ============================================================
+     Body scroll lock while the mobile drawer is open
+     ------------------------------------------------------------
+     js/app.js toggles `body--drawer-open` on <body> from
+     openSidebar()/closeSidebar() specifically so the page behind the
+     drawer/overlay can't be scrolled while it's open, but (until now)
+     no rule for this class existed anywhere in the CSS — the class was
+     applied and removed with no visible effect at all.
+     `overflow: hidden` on <body> is enough to stop scrolling in the
+     browsers this suite is verified against (desktop/mobile Chromium
+     via Playwright). We deliberately do NOT add `position: fixed` here:
+     that's the common extra step for older iOS Safari, but it resets
+     the scroll position to the top when applied/removed unless you also
+     save/restore scrollY with JS, which js/app.js does not currently do.
+     Trading a real (if rarer) "scroll jumps to top on drawer close" bug
+     for a partially-fixed one is worse, so we keep the minimal fix here.
+     If iOS Safari body scroll turns out not to be fully contained by
+     `overflow: hidden` alone, add scrollY save/restore in app.js's
+     openSidebar()/closeSidebar() before reaching for position:fixed.
+     Scoped to the mobile breakpoint because the drawer is mobile-only UI
+     (the hamburger button that triggers it is `display: none` above
+     768px, so this class is never applied while the sidebar is
+     permanently visible on desktop). */
+  .body--drawer-open {
+    overflow: hidden;
+  }
+
   /* Main content: no left margin on mobile */
   .main-content {
     margin-left: 0;

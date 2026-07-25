@@ -45,7 +45,19 @@
   flex-direction: column;
   overflow: hidden;
 }
-/* モバイル用の全画面化（main.css:657付近）はこの上に !important で重なる */
+/* モバイル用の全画面化（main.css の @media (max-width:768px) 内）は
+   width/max-width/margin/border-radius にのみ !important を付けて
+   この上に重なる。max-height/min-height には !important が無いため、
+   両ファイルとも通常優先度(0,0,1,0)の同名セレクタとなり、後段で読み込まれる
+   コンポーネント側（このファイル）の宣言が単純な後勝ちで有効になる点に注意。
+   min-height:100dvh（main.css）がこの下の base 規則の max-height より
+   大きい値を強制するため、実際の高さは 100dvh に固定される
+   （CSS の仕様上、max-height が min-height を下回る場合は min-height が
+   優先される）。ただしモバイル時に max-height を明示的に上書きする
+   規則をここに置くと、min-height の力関係に関係なく後勝ちで
+   意図せぬ値（旧: none = 無制約）が採用されてしまうため、
+   モバイル時の高さ制約は main.css 側の1箇所に一本化し、
+   ここでは追加のオーバーライドを置かない。 */
 
 .modal__header {
   display: flex;
@@ -113,9 +125,11 @@
   .modal {
     padding: 0;
   }
-  .modal__dialog {
-    max-height: none;
-  }
+  /* NOTE: モバイル時の .modal__dialog の高さ制約(min-height/max-height)は
+     main.css の @media (max-width:768px) 内に一本化されている。
+     ここで max-height を再宣言すると（このファイルは main.css より後に
+     読み込まれるため）同じ詳細度で単純に後勝ちしてしまい、main.css の
+     dvh 対応を無効化してしまう（実際に起きていたバグ）。追加しないこと。 */
 }
 
 /* ------------------------------------------------------------
