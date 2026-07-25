@@ -47,7 +47,17 @@ module.exports = defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  workers: process.env.CI ? 2 : undefined,
+  // ローカル(このサンドボックス)では workers を 1 に固定する。
+  // ここで起動する dev サーバーは `dotnet run` の Kestrel であり、実際に
+  // 検証したところ、既定の worker 数(ローカルは CPU数まで並列)で複数の
+  // Playwright ワーカーから同時にリクエストを浴びせると Kestrel が応答不能
+  // になったりクラッシュしたりして `npx playwright test` 自体が不安定に
+  // なることを確認済み。テストのアサーションを緩めるのではなく、実行条件
+  // (並列度)を実際に安定して通る値に合わせるための変更。
+  // CI 環境では専用のランナーリソースが確保され、このサンドボックスのような
+  // 競合が起きにくいため、引き続き 2 workers でスケールさせる
+  // （CIでも問題が再発するようであれば同様に 1 へ絞ることを検討）。
+  workers: process.env.CI ? 2 : 1,
   timeout: 45_000,
   expect: { timeout: 10_000 },
   reporter: process.env.CI

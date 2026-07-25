@@ -316,12 +316,14 @@
   text-align: center;
   background-color: var(--color-bg);
   transition: border-color 0.2s, background-color 0.2s;
-  /* 注意: このゾーン自体には click ハンドラが無く（JS側の課題。
-     このCSS変更では対応不可）、タップでは何も起きない。
-     cursor:pointer を付けるとタップ可能に見えて誤解を招くため
-     意図的に既定カーソルのままにしている。実働のタップ経路は
-     内部の「ファイルを選択」ボタン（.btn--secondary）のみ。 */
-  cursor: default;
+  /* 2026-07 更新: js/pages/csv-import-page.js にドロップゾーン自体への
+     click ハンドラが追加され、タップ/クリックで隠し input[type=file] の
+     ファイル選択ダイアログが実際に開くようになった（実機のタッチ
+     エミュレーションで filechooser が1回だけ発火することを確認済み）。
+     以前は「クリックしても何も起きないため cursor:default にする」という
+     コメントだったが、その前提が崩れているため cursor:pointer に変更し、
+     コメントも現状に合わせて更新する。 */
+  cursor: pointer;
 }
 
 .csv-import__drop-zone--active {

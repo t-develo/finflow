@@ -428,8 +428,11 @@ body {
   display: none;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  /* WCAG 2.5.5 / iOS HIG の最小タップ領域(44x44px)を満たすため 40px から拡大。
+     内側のアイコン(.hamburger-btn__icon は 20x14px のまま)は中央揃えなので、
+     見た目は変えずに当たり判定だけを広げられる。 */
+  width: 44px;
+  height: 44px;
   border: none;
   background: none;
   cursor: pointer;
@@ -519,6 +522,42 @@ body {
   /* Show hamburger button */
   .hamburger-btn {
     display: flex;
+  }
+
+  /* ============================================================
+     ドロワー展開中のハンバーガーボタン（閉じるボタンとして機能）
+     ------------------------------------------------------------
+     修正前は main-content 内に position:static のまま置かれており、
+     ドロワー(.sidebar, z-index:100)が開くとその下に隠れ、再タップで
+     閉じることができなかった（.hamburger-btn--open に用意されていた
+     ×アイコンへの変形アニメーションが「開いている間も押せる」ことを
+     前提にしていたのに、実際には押せなくなっていた）。
+     開いている間だけ position:fixed にしてサイドバーより手前へ出し、
+     左端は「サイドバー幅の外側」に retarget することで、ドロワー内の
+     ロゴ／ナビ項目とも視覚的に衝突しないようにする（サイドバーの上に
+     重ねて表示すると、ロゴの文字とボタンが重なってしまうため）。
+     top位置は閉時にmain-contentのpaddingで表示されていた位置
+     （spacing-md = 16px）と揃え、視覚的なジャンプを最小限にする。
+
+     z-index は 110 を採用。既存の階層
+     (.sidebar-overlay:90 < .sidebar:100 < .modal:400 <
+      .loading-overlay:500 < .network-error-banner:900) の中で
+     「サイドバーより前面・モーダルより背面」という位置づけが必要な
+     ため、100 と 400 の間で最小の刻み幅として 110 を選んだ。
+     モーダル表示中はハンバーガーボタンが操作不能のままでよい
+     （tests/e2e/tap-target-size.spec.js が明示的に許容している既存仕様）
+     ため、400 未満であれば問題ない。
+     デスクトップ幅では `.hamburger-btn { display: none; }` が引き続き
+     優先されるため、この規則はモバイル幅（このメディアクエリ内）に
+     閉じ込めており、デスクトップの見た目には影響しない。
+     ============================================================ */
+  .hamburger-btn--open {
+    position: fixed;
+    top: var(--spacing-md);
+    left: calc(var(--sidebar-width) + var(--spacing-md));
+    z-index: 110;
+    background-color: var(--color-surface);
+    box-shadow: var(--shadow-md);
   }
 
   /* Sidebar: slide in from left as overlay on mobile */
