@@ -186,6 +186,7 @@ public class ExpensesController : ControllerBase
             Amount = expense.Amount,
             CategoryId = expense.CategoryId,
             CategoryName = expense.Category?.Name,
+            CategoryColor = expense.Category?.Color,
             Date = expense.Date,
             Description = expense.Description ?? string.Empty,
             CreatedAt = expense.CreatedAt,

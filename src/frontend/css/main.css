@@ -673,7 +673,9 @@ body {
   }
 
   .btn--sm {
-    min-height: 36px;
+    /* タップ領域確保: モバイルでは最小タップ領域44pxを下回らないようにする。
+       視覚的な小型ボタンの意図を保つため font-size は 0.875rem のまま維持する。 */
+    min-height: 44px;
     font-size: 0.875rem;
   }
 
