@@ -113,9 +113,9 @@ dotnet ef database update \
 dotnet run --project src/FinFlow.Api
 ```
 
-- API: `http://localhost:5000`
-- Swagger UI: `http://localhost:5000/swagger`
-- フロントエンド: `http://localhost:5000`
+- API: `http://localhost:5212`
+- Swagger UI: `http://localhost:5212/swagger`
+- フロントエンド: `http://localhost:5212`
 
 **5. メール通知テスト用 MailHog（任意）**
 

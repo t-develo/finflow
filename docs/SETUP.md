@@ -39,8 +39,8 @@ dotnet ef database update --project src/FinFlow.Infrastructure --startup-project
 dotnet run --project src/FinFlow.Api
 ```
 
-デフォルトURL: `http://localhost:5000`
-Swagger UI: `http://localhost:5000/swagger`
+デフォルトURL: `http://localhost:5212`
+Swagger UI: `http://localhost:5212/swagger`
 
 ### 5. フロントエンドの確認
 

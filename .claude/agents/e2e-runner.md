@@ -97,7 +97,7 @@ public class ExpenseFlowTests : IClassFixture<WebApplicationFactory<Program>>
 ```bash
 # API サーバーを起動
 dotnet run --project src/FinFlow.Api
-# → http://localhost:5000 にアクセス
+# → http://localhost:5212 にアクセス
 ```
 
 - [ ] `/login` でフォームが表示される

@@ -6,7 +6,7 @@
 # ブラウザで直接開く（静的ファイルサーブ）
 # APIサーバー経由でアクセス
 dotnet run --project src/FinFlow.Api
-# → http://localhost:5000 でフロントエンドが配信される
+# → http://localhost:5212 でフロントエンドが配信される
 
 # または簡易HTTPサーバー
 python3 -m http.server 3000 -d src/frontend
