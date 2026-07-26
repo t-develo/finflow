@@ -163,7 +163,14 @@ public class ExpenseService : IExpenseService
 
         var page = filter.Page > 0 ? filter.Page : 1;
         var pageSize = filter.PageSize > 0 ? filter.PageSize : 50;
-        query = query.Skip((page - 1) * pageSize).Take(pageSize);
+
+        // ページングは安定した並び順が前提。ORDER BY が無いとリレーショナル DB では
+        // ページ間で行の重複・欠落が起こりうるため、日付降順（同日は Id 降順）で固定する。
+        query = query
+            .OrderByDescending(e => e.Date)
+            .ThenByDescending(e => e.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize);
 
         return query;
     }

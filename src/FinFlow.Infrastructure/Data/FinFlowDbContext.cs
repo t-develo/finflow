@@ -2,12 +2,27 @@ using FinFlow.Domain.Entities;
 using FinFlow.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace FinFlow.Infrastructure.Data;
 
 public class FinFlowDbContext : IdentityDbContext<ApplicationUser>
 {
     public FinFlowDbContext(DbContextOptions<FinFlowDbContext> options) : base(options) { }
+
+    /// <summary>
+    /// SQLite には decimal 型が無い。"decimal(18,2)" 列は NUMERIC affinity となり、
+    /// 小数を含む金額は REAL（8バイト浮動小数点）として保存される。
+    /// これは「金額に float/double を使わない」という規約に反し、実際に丸め誤差が出る
+    /// （例: 99999999999999.99 を保存して読み戻すと 99999999999999.98 になる）。
+    ///
+    /// そこで最小単位（1/100）の long に変換して INTEGER 列へ保存し、保存・比較・集計を
+    /// すべて整数演算で行う。CLR 側のプロパティは decimal のまま。
+    /// </summary>
+    private static readonly ValueConverter<decimal, long> MoneyToMinorUnits = new(
+        amount => (long)decimal.Round(amount * 100m, 0, MidpointRounding.AwayFromZero),
+        minorUnits => minorUnits / 100m);
 
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Expense> Expenses => Set<Expense>();
@@ -37,7 +52,7 @@ public class FinFlowDbContext : IdentityDbContext<ApplicationUser>
         {
             e.HasKey(ex => ex.Id);
             e.Property(ex => ex.UserId).HasMaxLength(450).IsRequired();
-            e.Property(ex => ex.Amount).HasColumnType("decimal(18,2)");
+            ConfigureMoney(e.Property(ex => ex.Amount));
             e.Property(ex => ex.Description).HasMaxLength(500);
             e.Property(ex => ex.ImportSource).HasMaxLength(50);
             e.HasIndex(ex => ex.UserId).HasDatabaseName("IX_Expenses_UserId");
@@ -59,7 +74,7 @@ public class FinFlowDbContext : IdentityDbContext<ApplicationUser>
             e.HasKey(s => s.Id);
             e.Property(s => s.UserId).HasMaxLength(450).IsRequired();
             e.Property(s => s.ServiceName).HasMaxLength(200).IsRequired();
-            e.Property(s => s.Amount).HasColumnType("decimal(18,2)");
+            ConfigureMoney(e.Property(s => s.Amount));
             e.Property(s => s.BillingCycle).HasMaxLength(20).HasDefaultValue("monthly");
             e.Property(s => s.Notes).HasMaxLength(500);
             e.HasIndex(s => s.UserId).HasDatabaseName("IX_Subscriptions_UserId");
@@ -103,5 +118,17 @@ public class FinFlowDbContext : IdentityDbContext<ApplicationUser>
             new Category { Id = 7, Name = "通信費", Color = "#06B6D4", IsSystem = true, CreatedAt = now, UpdatedAt = now },
             new Category { Id = 8, Name = "その他", Color = "#6B7280", IsSystem = true, CreatedAt = now, UpdatedAt = now }
         );
+    }
+
+    /// <summary>
+    /// 金額プロパティをプロバイダごとに適切な列型へマッピングする。
+    /// EF のモデルキャッシュはプロバイダ単位のため、この分岐は安全。
+    /// </summary>
+    private void ConfigureMoney(PropertyBuilder<decimal> property)
+    {
+        if (Database.IsSqlite())
+            property.HasConversion(MoneyToMinorUnits);
+        else
+            property.HasColumnType("decimal(18,2)");
     }
 }

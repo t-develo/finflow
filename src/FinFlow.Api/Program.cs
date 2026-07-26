@@ -26,13 +26,34 @@ if (builder.Environment.IsProduction() &&
         "Never use the default development key in production.");
 }
 
+// systemd 配下では Type=notify の準備完了通知と journald 形式のログを有効にする（他の環境では no-op）
+builder.Host.UseSystemd();
+
 // Database
+// 既定値は従来の挙動を維持: Development=InMemory / それ以外=SqlServer（Azure App Service）。
+// ラズパイなど SQL Server を使えない環境は Database__Provider=Sqlite で切り替える。
+var dbProvider = builder.Configuration["Database:Provider"]
+    ?? (builder.Environment.IsDevelopment() ? "InMemory" : "SqlServer");
+var dbConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
 builder.Services.AddDbContext<FinFlowDbContext>(options =>
 {
-    if (builder.Environment.IsDevelopment())
-        options.UseInMemoryDatabase("FinFlowDev");
-    else
-        options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
+    switch (dbProvider)
+    {
+        case "InMemory":
+            options.UseInMemoryDatabase("FinFlowDev");
+            break;
+        case "Sqlite":
+            options.UseSqlite(dbConnectionString,
+                sqlite => sqlite.MigrationsAssembly("FinFlow.Infrastructure.Sqlite"));
+            break;
+        case "SqlServer":
+            options.UseSqlServer(dbConnectionString);
+            break;
+        default:
+            throw new InvalidOperationException(
+                $"Unknown Database:Provider '{dbProvider}'. Valid values: InMemory, Sqlite, SqlServer.");
+    }
 });
 
 // Identity
@@ -152,7 +173,13 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// HTTP のみで待ち受ける構成（例: 家庭内 LAN のラズパイ）では、リダイレクト先の HTTPS ポートを
+// 決定できずリクエストごとに警告が出るため、明示的に無効化できるようにする。
+if (builder.Configuration.GetValue("Https:RedirectEnabled", true))
+{
+    app.UseHttpsRedirection();
+}
+
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
