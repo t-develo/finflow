@@ -5,8 +5,8 @@
 
 ## 最終更新
 
-- **日時:** 2026-07-25
-- **担当者/エージェント:** Claude Code（ラズパイ常駐化タスク。main のモバイル操作性対応をマージ）
+- **日時:** 2026-07-26
+- **担当者/エージェント:** Claude Code（ラズパイ実機で起きたサービス起動失敗の修正）
 
 ## 現在のスプリント・マイルストーン
 
@@ -14,11 +14,41 @@
 - **フォーカス:**
   1. ラズベリーパイでの常駐運用（systemd 自動起動 + SQLite 永続化）← 本ブランチ
   2. モバイル操作性の修正と Playwright E2E 回帰テスト整備 ← main で完了済み
-- **ブランチ:** `claude/raspi-app-autostart-service-3nb6ne`（`origin/main` をマージ済み）
+- **ブランチ:** `claude/finflow-service-startup-error-qkfzgj`（PR #19 マージ後の `main` から分岐）
 
 ## 直前の作業内容
 
-### 完了したタスク（A: ラズパイ常駐化 — 本ブランチ）
+### 完了したタスク（C: ラズパイ実機での起動失敗を修正 — 本ブランチ）
+
+実機で `sudo ./infra/raspi/install.sh` を実行したところ、ビルド・配置は成功するが
+`systemctl start finflow` が
+`Job for finflow.service failed because a fatal signal was delivered to the control process.`
+で失敗した。
+
+- **根本原因: `finflow.service` の `Environment=` にクォートされていない空白があった。**
+  systemd の `Environment=` は「空白区切りの代入リスト」として解釈されるため、
+  `Environment=ConnectionStrings__DefaultConnection=Data Source=/var/lib/finflow/finflow.db` は
+  `ConnectionStrings__DefaultConnection=Data` と `Source=/var/lib/...` の**2変数に分割**されていた。
+  結果 `UseSqlite("Data")` となり `Program.cs:199` の `db.Database.Migrate()` で例外 →
+  .NET は Linux で未処理例外を `abort()`（SIGABRT）で終了するため
+  systemd が `result=signal` と判定し上記メッセージになっていた。
+  → `Environment=` の行を一律ダブルクォートで囲んだ。
+  分割後の `Source=...` も文法上正しい代入なので**警告が一切出ず**、
+  `systemd-analyze verify` でも検出できない点に注意（`systemd-analyze` で実証済み）。
+- **失敗時にログが出ない問題を修正** — `deploy.sh` の `systemctl start` が `set -e` 配下で
+  無防備だったため、用意されていた journalctl の案内に到達せずスクリプトが中断していた。
+  `fail_with_logs()` を追加し、`systemctl status` と `journalctl -n 50` を必ず表示するようにした。
+- **start limit 対策** — `Restart=always` で失敗を繰り返した後は起動を拒否されるため、
+  `deploy.sh` に `systemctl reset-failed` を追加。
+- **ドキュメント** — `docs/RASPBERRY_PI_DEPLOYMENT.md` に
+  「`fatal signal was delivered to the control process` と出て起動しない」節を追加。
+  メッセージの読み方（＝アプリの未処理例外）、例外別の対処表、
+  `systemctl show finflow -p Environment` による切り分け手順を記載。
+
+> **教訓:** systemd ユニットに設定を足すときは、値に空白が入りうるなら必ずクォートする。
+> 検証は `systemctl show <unit> -p Environment` で**解釈後の値**を見ること。
+
+### 完了したタスク（A: ラズパイ常駐化 — PR #19 でマージ済み）
 
 - **systemd サービス化** — `infra/raspi/finflow.service` を追加。ラズパイ起動時に自動開始、
   クラッシュ時は 10 秒後に自動復帰。`Type=notify` で実際の待受開始を待つ。
@@ -67,10 +97,13 @@
 
 ### 次にやること
 
-- **ラズパイ実機での検証**（未実施 — 作業環境が x64 コンテナのため）
+- **ラズパイ実機で今回の修正を検証**（最優先。作業環境が x64 コンテナのため未実施）
   ```bash
+  git pull
   sudo ./infra/raspi/install.sh
+  systemctl show finflow -p Environment   # 接続文字列が1つの値になっていること
   systemctl is-enabled finflow && systemctl is-active finflow
+  curl -fsS http://localhost:5212/ >/dev/null && echo OK
   sudo reboot   # 再起動後に自動で上がることを確認
   ```
 - `src/frontend/js/components/ff-header.js` と `ff-sidebar.js` はどこからも import されていない**死にコード**
