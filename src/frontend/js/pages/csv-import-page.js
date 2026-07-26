@@ -130,7 +130,24 @@ function attachEventListeners(container) {
   const uploadBtn = container.querySelector('#upload-btn');
 
   // ファイル選択ボタン
-  fileSelectBtn.addEventListener('click', () => fileInput.click());
+  // stopPropagation() で #drop-zone 側の click ハンドラへのバブリングを止める。
+  // 止めないと「ボタンクリック → fileInput.click()」の後に
+  // ドロップゾーンのハンドラでも fileInput.click() が呼ばれ、
+  // ファイル選択ダイアログが二重に開いてしまう（環境によっては選択が取り消される）。
+  fileSelectBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    fileInput.click();
+  });
+
+  // ドロップゾーン自体のタップ/クリックでもファイル選択を開く（タッチデバイス対応）。
+  // dragover/drop はタッチデバイスに存在しないため、従来はドロップゾーンの
+  // 大部分がタップしても反応しない死んだ領域になっていた。
+  // #file-select-btn のクリックは上記 stopPropagation() でここまで届かないが、
+  // 念のため closest('button, input') でボタン/入力要素上のクリックは除外する。
+  dropZone.addEventListener('click', (e) => {
+    if (e.target.closest('button, input')) return;
+    fileInput.click();
+  });
 
   // ドロップゾーンのキーボード操作（Enter/Space でファイル選択ダイアログを開く）
   dropZone.addEventListener('keydown', (e) => {

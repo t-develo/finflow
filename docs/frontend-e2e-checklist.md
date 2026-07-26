@@ -9,7 +9,7 @@
 - [ ] `src/frontend/index.html` をブラウザで開く（または API サーバ経由でアクセス）
 - [ ] ブラウザの開発者コンソールに JavaScript エラーが出ていないこと
 - [ ] ネットワークタブで `/api/*` へのリクエストが正しく飛んでいること（モックではなく実 API）
-- [ ] モバイルサイズ（375px 幅）に切り替えてレイアウトが崩れていないこと
+- [ ] モバイルサイズ（375px 幅）に切り替えてレイアウトが崩れていないこと（崩れの詳細は「8. レスポンシブ対応」、タップ操作性は「10. モバイル操作性」を参照）
 
 ---
 
@@ -158,6 +158,10 @@
 
 ## 8. レスポンシブ対応（モバイル確認）
 
+> 以下のうちタップ操作系の項目（ハンバーガー開閉・オーバーレイ・ナビリンク・44px タップ領域）は
+> `tests/e2e/` の Playwright スイートで自動回帰テスト化済みです。詳細と実行方法は
+> 「10. モバイル操作性」を参照してください。ここでは引き続き手動確認のチェックリストとして残します。
+
 - [ ] 幅 375px（iPhone SE 相当）でレイアウトが正常に表示される
 - [ ] 認証ページ（ログイン・登録）でサイドバーが表示されない
 - [ ] 認証後のページでハンバーガーボタンが表示される
@@ -183,5 +187,80 @@
 
 ---
 
+## 10. モバイル操作性（タッチ回帰テスト）
+
+2026-07 のブランチ `claude/mobile-operation-testing-fix-99lizq` で、「スマホ（tailscale経由）でログイン画面のタップが
+一切効かない」という報告を受けて全画面のモバイル操作性を監査・修正した。この節はその際に `tests/e2e/` に追加された
+Playwright 自動回帰テストと、自動テストでは担保できず実機でしか確認できない項目を区別して記録する。
+
+### 10-1. 自動テストの実行方法
+
+```bash
+# ブラウザバイナリは /opt/pw-browsers に導入済み。playwright install は不要
+# (このサンドボックスに入っているのは Chromium のみ。WebKit/Firefox は無い)
+export PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
+
+# 全スイート実行（package.json の script でも可: npm run test:e2e）
+npx playwright test
+
+# workers=1 は playwright.config.js 内で明示的に固定されている。
+# このサンドボックスの `dotnet run` (Kestrel) が既定の並列数（CPU数まで）で
+# 複数ワーカーから同時にリクエストを受けると応答不能・クラッシュすることが
+# 実測で確認されているため、テストのアサーションではなく実行条件（並列度）を
+# 安定して通る値に合わせてある。CI 環境では 2 workers のまま（専用リソースの
+# ため競合が起きにくい想定）。手元で `--workers` を上書きして実行しないこと。
+```
+
+`webServer` 設定により `dotnet run --project src/FinFlow.Api` が自動起動する（ポート 5212、`ASPNETCORE_URLS` は
+HTTP のみ。`Program.cs` の `UseHttpsRedirection()` が有効なため HTTPS を混在させると全リクエストが 307 になり壊れる）。
+
+プロジェクト構成は3つ:
+- `mobile-chrome-pixel7` — Chromium の Pixel 7 エミュレーションプロファイル
+- `mobile-chrome-iphone-size` — Chromium 固定 (`defaultBrowserType: 'chromium'`) の iPhone 相当ビューポート（390x844,
+  DPR3, `isMobile`/`hasTouch`）。Playwright 標準の `devices['iPhone *']` は既定で WebKit を要求するため使っていない
+- `desktop-chromium-regression` — デスクトップ Chrome + `hasTouch: true`。`hit-test-regression.spec.js` と
+  `console-and-layout.spec.js` のみ実行（モバイル専用のドロワー/ハンバーガー系 spec は対象外）
+
+### 10-2. 自動テストが担保している項目（spec 対応表）
+
+以下は実際にテスト実装（`tests/e2e/*.spec.js`）を確認した内容。**推測ではなく spec の内容に基づく。**
+
+| spec ファイル | 対象画面 | 担保内容 |
+|---|---|---|
+| `hit-test-regression.spec.js` | `helpers/screens.js` の全画面（下記） | 各画面の全ての可視インタラクティブ要素（button/a[href]/input/select/textarea/[role=button]）について、その中心座標を `elementFromPoint` した結果が要素自身・子孫・祖先・関連labelのいずれかであることを検証。透明なオーバーレイ等に taps が吸われていないかの回帰ガード（今回の根本原因バグの直接の再発防止） |
+| `tap-target-size.spec.js` | `helpers/screens.js` の全画面 | 可視インタラクティブ要素のバウンディングボックスが 44x44px 以上であることを検証（`TAP_TARGET_ALLOWLIST` は現状空で、正当な理由がレビューされない限り例外を追加しない方針） |
+| `console-and-layout.spec.js` | `helpers/screens.js` の全画面 | (1) JS コンソールエラー・未捕捉例外が無いこと（Chart.js CDN 読み込み失敗のみ既知の環境要因として無視）、(2) 横スクロールが発生しないこと（`scrollWidth <= clientWidth`） |
+| `login-touch.spec.js` | `/login`, `/register` | メール・パスワード欄をタップするとフォーカスが入ること、「新規登録」リンクをタップすると `/register` に遷移すること、遷移後のフォーム欄もタップでフォーカスできること |
+| `sidebar-navigation.spec.js` | 認証後の画面（モバイル幅） | ハンバーガーボタンのタップでサイドバー開閉、オーバーレイタップで閉じる、ナビリンクタップで遷移かつサイドバーが閉じる、開閉を繰り返しても状態が一貫すること |
+| `hidden-attribute.spec.js` | サブスクモーダル、`/login` | `hidden` 属性を持つ要素が実際に `toBeHidden()`（computed style 由来）であること。具体的にはサブスク新規作成時の削除ボタン、編集時に表示される削除ボタン、`/login` のハンバーガーボタン |
+| `csv-import-touch.spec.js` | `/expenses/import` | 「ファイル選択」ボタンがオーバーレイに覆われずタップ可能であること、ファイル選択後にアップロードボタンが有効化されインポート結果が表示されること、結果画面から支出一覧への遷移とインポート結果の反映。**注意**: drag&drop はタッチデバイスに相当ジェスチャーが無いため意図的にテスト対象外（ファイル選択ボタン経由の経路のみ検証） |
+| `modal-and-scroll-lock.spec.js` | サブスクリプション追加モーダル（開いた状態）、認証後の画面（モバイル幅、ドロワー開閉） | (1) 画面高を 390x480 まで下げてもサブスクモーダルのフッター（閉じる・キャンセル・保存ボタン）が `boundingBox()` 上でビューポート内に収まり続けること、および `hit-test-regression.spec.js` の判定ロジック（`findHitTestFailures`）をモーダル内に限定して再利用し他要素に覆われていないことを確認、さらにキャンセルボタンへの実タップでモーダルが閉じることも検証。(2) ハンバーガーボタンでモバイルドロワーを開いた際、`body` に `body--drawer-open` クラスと `overflow: hidden` が付与されるだけでなく、実際に `page.mouse.wheel()` でホイール操作を送っても `window.scrollY` が変化しないことを検証し、ドロワーを閉じると `overflow` が復帰し再びスクロールできることも確認 |
+
+`helpers/screens.js` が定義する画面一覧（`hit-test-regression`/`tap-target-size`/`console-and-layout` が横断的にスイープする対象）:
+ログイン画面、新規登録画面、ダッシュボード画面、支出一覧画面、支出追加フォーム画面（`/expenses/new`）、
+支出編集フォーム画面（`/expenses/:id/edit`、API経由で実データを作成してから遷移）、サブスクリプション一覧画面、
+サブスクリプション追加モーダル（開いた状態）、カテゴリ管理画面、CSV取込画面。
+
+### 10-3. 手動確認が必要な項目（実機でしか確認できない）
+
+上記の自動テストは **Chromium のモバイルエミュレーション（Pixel 7 プロファイル / 手組みの iPhone サイズビューポート）のみ**
+で実行されている。このサンドボックスには WebKit が導入されておらず（`PLAYWRIGHT_BROWSERS_PATH` 配下は Chromium のみ）、
+iOS Safari 固有の挙動は自動テストで検証できない。以下は iOS/Android の実機で手動確認すること。
+
+- [ ] iOS Safari 実機でタップ操作全般が問題なく反応する（本チェックリスト 1〜7 章の主要フローを実機で再確認）
+- [ ] iOS Safari で `font-size` が 16px 未満の入力欄にフォーカスした際、画面が自動ズームしない（`.filter-bar__select` 等に
+      `font-size: 1rem` を付与する対応はコード上入っているが、実機のズーム挙動自体は未検証）
+- [ ] アドレスバー/ツールバーの表示・非表示でビューポート高さが変わる際、`100dvh` を使っている箇所（モーダル等）の
+      高さが破綻しない（ヘッドレス Chromium のビューポートは固定のため、ツールバー変動によるリサイズは再現されない）
+- [ ] ソフトウェアキーボード表示時に visual viewport が縮小しても、フォームや固定要素のレイアウトが崩れない
+      （ボタンがキーボードの裏に隠れる、送信ボタンに到達できない等がないか）
+- [ ] 実際の OS ファイル選択ダイアログから CSV ファイルを選択できる（自動テストは `input[type=file]` への直接ファイル
+      注入で代替しており、OS ネイティブの picker 自体の起動・操作は未検証）
+
+*テスト実装の詳細確認日: 2026-07-25*
+
+---
+
 *作成日: 2026-03-12*
 *担当: SE-C (Sprint 3 S3-C-002)*
+*10章追記: 2026-07-25（`claude/mobile-operation-testing-fix-99lizq` のモバイル操作性監査・E2E追加を反映）*

@@ -13,6 +13,16 @@
   --color-text: #111827;
   --color-text-muted: #6B7280;
 
+  /* Tint tokens for badges / alerts / modifiers (components.css, pages.css) */
+  --color-success-bg: #F0FDF4;
+  --color-success-border: #BBF7D0;
+  --color-danger-bg: #FEF2F2;
+  --color-danger-border: #FECACA;
+  --color-warning-bg: #FFFBEB;
+  --color-warning-border: #FDE68A;
+  --color-warning-text: #92400E;
+  --color-muted-bg: #F3F4F6;
+
   --sidebar-width: 240px;
   --header-height: 60px;
 
@@ -33,6 +43,23 @@
   padding: 0;
 }
 
+/* ============================================================
+   [hidden] グローバルガード
+   ------------------------------------------------------------
+   UA スタイルシートの `[hidden] { display: none }` は同じ詳細度
+   (0,0,1,0) の作成者スタイル（`.btn{display:inline-flex}` 等）に
+   カスケード上の優先順位（origin）で負ける。そのため `hidden`
+   属性を持つ要素に `display` を宣言するクラスが1つでも付くと、
+   `hidden` が無視されて要素が表示されたままになる
+   （例: 新規作成モーダルの削除ボタン、常時表示されるバリデーション
+   エラー、認証画面のハンバーガーボタン等）。
+   `!important` で明示的に UA より優先させ、`hidden` 属性を
+   常に最優先の非表示手段として機能させる。
+   ============================================================ */
+[hidden] {
+  display: none !important;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background-color: var(--color-bg);
@@ -44,6 +71,8 @@ body {
 #app {
   display: flex;
   min-height: 100vh;
+  /* iOS Safari のツールバー変動に対応（動的ビューポート高さ） */
+  min-height: 100dvh;
 }
 
 .sidebar {
@@ -56,6 +85,8 @@ body {
   top: 0;
   left: 0;
   height: 100vh;
+  /* iOS Safari のツールバー変動に対応（動的ビューポート高さ） */
+  height: 100dvh;
   z-index: 100;
   transition: transform 0.3s ease;
 }
@@ -124,6 +155,8 @@ body {
   margin-left: var(--sidebar-width);
   padding: var(--spacing-lg);
   min-height: 100vh;
+  /* iOS Safari のツールバー変動に対応（動的ビューポート高さ） */
+  min-height: 100dvh;
 }
 
 .main-content--full {
@@ -395,8 +428,11 @@ body {
   display: none;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  /* WCAG 2.5.5 / iOS HIG の最小タップ領域(44x44px)を満たすため 40px から拡大。
+     内側のアイコン(.hamburger-btn__icon は 20x14px のまま)は中央揃えなので、
+     見た目は変えずに当たり判定だけを広げられる。 */
+  width: 44px;
+  height: 44px;
   border: none;
   background: none;
   cursor: pointer;
@@ -447,11 +483,18 @@ body {
   background-color: rgba(0, 0, 0, 0.4);
   z-index: 90;
   opacity: 0;
+  /* opacity:0 だけではヒットテストが無効化されず、モバイル幅では
+     常時透明な全画面シャッターとして最前面(z-index:90)に居座り、
+     配下の入力欄・リンク・ハンバーガーへの全タップを吸い込んでしまう。
+     非表示時は pointer-events:none でクリックを透過させ、
+     表示時のみ auto に戻す（ff-toast/ff-confirm-dialog と同じ規約）。 */
+  pointer-events: none;
   transition: opacity 0.3s ease;
 }
 
 .sidebar-overlay--visible {
   opacity: 1;
+  pointer-events: auto;
 }
 
 /* ============================================================
@@ -481,6 +524,42 @@ body {
     display: flex;
   }
 
+  /* ============================================================
+     ドロワー展開中のハンバーガーボタン（閉じるボタンとして機能）
+     ------------------------------------------------------------
+     修正前は main-content 内に position:static のまま置かれており、
+     ドロワー(.sidebar, z-index:100)が開くとその下に隠れ、再タップで
+     閉じることができなかった（.hamburger-btn--open に用意されていた
+     ×アイコンへの変形アニメーションが「開いている間も押せる」ことを
+     前提にしていたのに、実際には押せなくなっていた）。
+     開いている間だけ position:fixed にしてサイドバーより手前へ出し、
+     左端は「サイドバー幅の外側」に retarget することで、ドロワー内の
+     ロゴ／ナビ項目とも視覚的に衝突しないようにする（サイドバーの上に
+     重ねて表示すると、ロゴの文字とボタンが重なってしまうため）。
+     top位置は閉時にmain-contentのpaddingで表示されていた位置
+     （spacing-md = 16px）と揃え、視覚的なジャンプを最小限にする。
+
+     z-index は 110 を採用。既存の階層
+     (.sidebar-overlay:90 < .sidebar:100 < .modal:400 <
+      .loading-overlay:500 < .network-error-banner:900) の中で
+     「サイドバーより前面・モーダルより背面」という位置づけが必要な
+     ため、100 と 400 の間で最小の刻み幅として 110 を選んだ。
+     モーダル表示中はハンバーガーボタンが操作不能のままでよい
+     （tests/e2e/tap-target-size.spec.js が明示的に許容している既存仕様）
+     ため、400 未満であれば問題ない。
+     デスクトップ幅では `.hamburger-btn { display: none; }` が引き続き
+     優先されるため、この規則はモバイル幅（このメディアクエリ内）に
+     閉じ込めており、デスクトップの見た目には影響しない。
+     ============================================================ */
+  .hamburger-btn--open {
+    position: fixed;
+    top: var(--spacing-md);
+    left: calc(var(--sidebar-width) + var(--spacing-md));
+    z-index: 110;
+    background-color: var(--color-surface);
+    box-shadow: var(--shadow-md);
+  }
+
   /* Sidebar: slide in from left as overlay on mobile */
   .sidebar {
     transform: translateX(-100%);
@@ -498,6 +577,33 @@ body {
   /* Show the dim overlay when sidebar is open */
   .sidebar-overlay {
     display: block;
+  }
+
+  /* ============================================================
+     Body scroll lock while the mobile drawer is open
+     ------------------------------------------------------------
+     js/app.js toggles `body--drawer-open` on <body> from
+     openSidebar()/closeSidebar() specifically so the page behind the
+     drawer/overlay can't be scrolled while it's open, but (until now)
+     no rule for this class existed anywhere in the CSS — the class was
+     applied and removed with no visible effect at all.
+     `overflow: hidden` on <body> is enough to stop scrolling in the
+     browsers this suite is verified against (desktop/mobile Chromium
+     via Playwright). We deliberately do NOT add `position: fixed` here:
+     that's the common extra step for older iOS Safari, but it resets
+     the scroll position to the top when applied/removed unless you also
+     save/restore scrollY with JS, which js/app.js does not currently do.
+     Trading a real (if rarer) "scroll jumps to top on drawer close" bug
+     for a partially-fixed one is worse, so we keep the minimal fix here.
+     If iOS Safari body scroll turns out not to be fully contained by
+     `overflow: hidden` alone, add scrollY save/restore in app.js's
+     openSidebar()/closeSidebar() before reaching for position:fixed.
+     Scoped to the mobile breakpoint because the drawer is mobile-only UI
+     (the hamburger button that triggers it is `display: none` above
+     768px, so this class is never applied while the sidebar is
+     permanently visible on desktop). */
+  .body--drawer-open {
+    overflow: hidden;
   }
 
   /* Main content: no left margin on mobile */
@@ -594,7 +700,9 @@ body {
   }
 
   .btn--sm {
-    min-height: 36px;
+    /* タップ領域確保: モバイルでは最小タップ領域44pxを下回らないようにする。
+       視覚的な小型ボタンの意図を保つため font-size は 0.875rem のまま維持する。 */
+    min-height: 44px;
     font-size: 0.875rem;
   }
 
@@ -621,6 +729,10 @@ body {
     margin: 0 !important;
     border-radius: 0 !important;
     min-height: 100vh;
+    /* iOS Safari のツールバー変動に対応（動的ビューポート高さ） */
+    min-height: 100dvh;
+    max-height: 100vh;
+    max-height: 100dvh;
   }
 
   /* Filter bar: wrap */
