@@ -163,12 +163,73 @@ sudo systemctl start finflow
 | 症状 | 確認すること |
 |------|------------|
 | サービスが起動しない | `journalctl -u finflow -n 50 --no-pager` で例外を確認 |
+| `fatal signal was delivered to the control process` | アプリの未処理例外。[下の節](#fatal-signal-was-delivered-to-the-control-process-と出て起動しない)を参照 |
 | `Jwt:Key must be set...` で落ちる | `/etc/finflow/finflow.env` に `Jwt__Key` があるか確認 |
 | 他の端末からアクセスできない | `ASPNETCORE_URLS` が `0.0.0.0` になっているか、ファイアウォールで 5212 が開いているか |
 | ポートが既に使用中 | `sudo ss -lptn 'sport = :5212'` で使用プロセスを確認 |
 | データが消えた | `Database__Provider` が `Sqlite` か確認（`InMemory` だと再起動で消える） |
 | DB に書き込めない | `/var/lib/finflow` の所有者が `finflow` か確認（`ls -la /var/lib/finflow`） |
 | 画面が真っ白 | `/opt/finflow/wwwroot/index.html` があるか確認。無ければ `deploy.sh` を再実行 |
+
+### `fatal signal was delivered to the control process` と出て起動しない
+
+```
+Job for finflow.service failed because a fatal signal was delivered to the control process.
+```
+
+**まずこのメッセージの意味を押さえる。** systemd は失敗理由ごとに文言を出し分けており、
+これは「終了コードではなく**シグナルでプロセスが死んだ**」ことを示す
+（`the control process exited with error code` / `a timeout was exceeded` とは別の状態）。
+
+.NET は Linux 上で**未処理例外を `abort()`（SIGABRT）で終了する**ため、
+実際にはほぼ「**アプリが起動時に例外を投げた**」と読んでよい。systemd 側の設定ではなく、
+アプリのログに答えがある。
+
+```bash
+journalctl -u finflow -n 100 --no-pager
+```
+
+出てくる例外ごとの対処:
+
+| ログに出る内容 | 原因 | 対処 |
+|---|---|---|
+| `Format of the initialization string does not conform...` / `SqliteException` | `Environment=` のクォート漏れで接続文字列が壊れている（後述） | `systemctl show finflow -p Environment` で実際の値を確認 |
+| `Jwt:Key must be set to a strong secret value in production` | `/etc/finflow/finflow.env` が無い・読めない・`Jwt__Key` が空 | `sudo ./infra/raspi/install.sh` を再実行するか、手動で `Jwt__Key` を設定して再起動 |
+| `Unknown Database:Provider '...'` | `Database__Provider` の値が不正 | `Sqlite` を指定する |
+| `unable to open database file` | `/var/lib/finflow` の権限 | `ls -ld /var/lib/finflow` が `finflow finflow` かつ `drwx------` か確認 |
+| ログに例外が無く `Killed` のみ / `dmesg` に `oom-kill` | メモリ不足（RAM 1GB 以下の機種） | swap を増やす（`sudo dphys-swapfile swapoff/setup/swapon`） |
+
+#### `Environment=` のクォートに注意
+
+systemd の `Environment=` は**空白区切りの代入リスト**として解釈される。
+値に空白を含む場合はダブルクォートで囲まないと途中で分割される。
+
+```ini
+# NG: ConnectionStrings__DefaultConnection=Data と Source=/var/... の「2変数」になる
+Environment=ConnectionStrings__DefaultConnection=Data Source=/var/lib/finflow/finflow.db
+
+# OK
+Environment="ConnectionStrings__DefaultConnection=Data Source=/var/lib/finflow/finflow.db"
+```
+
+分割後の `Source=/var/...` も文法上は正しい代入なので**警告が一切出ない**。
+`systemd-analyze verify` でも検出できないため、必ず解釈結果を直接見て確認する。
+
+```bash
+systemctl show finflow -p Environment
+# 期待: ...ConnectionStrings__DefaultConnection=Data Source=/var/lib/finflow/finflow.db...
+# 異常: ConnectionStrings__DefaultConnection=Data と Source=... に割れている
+```
+
+#### 起動失敗を繰り返したあとに `start-limit` で拒否される場合
+
+`Restart=always` のため失敗を繰り返すと start limit に達し、
+修正後も起動を拒否されることがある。失敗カウンタを消してから起動する。
+
+```bash
+sudo systemctl reset-failed finflow
+sudo systemctl start finflow
+```
 
 ### 起動状態の一括確認
 

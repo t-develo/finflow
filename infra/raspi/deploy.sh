@@ -18,6 +18,23 @@ REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 cleanup() { rm -rf "$BUILD_DIR"; }
 trap cleanup EXIT
 
+# 起動に失敗したときは必ずログを画面に出す。
+# systemctl の "failed because a fatal signal was delivered to the control process"
+# だけでは原因が分からず、journal を見ないと切り分けできないため。
+fail_with_logs() {
+    echo "" >&2
+    echo "エラー: $1" >&2
+    echo "--- systemctl status ---" >&2
+    systemctl status "$SERVICE_NAME" --no-pager -l 2>&1 | sed 's/^/  /' >&2 || true
+    echo "--- journalctl (直近50行) ---" >&2
+    journalctl -u "$SERVICE_NAME" -n 50 --no-pager 2>&1 | sed 's/^/  /' >&2 || true
+    echo "" >&2
+    echo "ヒント: 上のログに .NET の例外が出ていればアプリ側の設定エラーです。" >&2
+    echo "  設定値の確認: systemctl show $SERVICE_NAME -p Environment" >&2
+    echo "  詳しい対処  : docs/RASPBERRY_PI_DEPLOYMENT.md の「トラブルシューティング」" >&2
+    exit 1
+}
+
 if [[ $EUID -ne 0 ]]; then
     echo "エラー: root で実行してください（sudo ./infra/raspi/deploy.sh）" >&2
     exit 1
@@ -52,6 +69,9 @@ fi
 
 echo "==> サービス停止"
 systemctl stop "$SERVICE_NAME" 2>/dev/null || true
+# Restart=always で失敗を繰り返した直後は start limit に達していて起動を拒否されるため、
+# 失敗カウンタを消してから配置・起動する。
+systemctl reset-failed "$SERVICE_NAME" 2>/dev/null || true
 
 echo "==> $APP_DIR へ配置"
 mkdir -p "$APP_DIR"
@@ -60,7 +80,8 @@ rsync -a --delete "$BUILD_DIR/" "$APP_DIR/"
 chown -R "$SERVICE_USER:$SERVICE_USER" "$APP_DIR"
 
 echo "==> サービス起動"
-systemctl start "$SERVICE_NAME"
+# set -e で即死すると下の fail_with_logs に到達せずログが出ないため、明示的に判定する
+systemctl start "$SERVICE_NAME" || fail_with_logs "サービスの起動に失敗しました。"
 
 echo "==> 起動確認"
 for i in {1..15}; do
@@ -72,7 +93,4 @@ for i in {1..15}; do
     sleep 2
 done
 
-echo "エラー: 起動確認に失敗しました。ログを確認してください:" >&2
-echo "  journalctl -u $SERVICE_NAME -n 50 --no-pager" >&2
-systemctl is-active "$SERVICE_NAME" >&2 || true
-exit 1
+fail_with_logs "サービスは起動しましたが、30秒以内に http://localhost:5212/ へ応答しませんでした。"
