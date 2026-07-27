@@ -14,6 +14,30 @@ const patternRoutes = [];
 // overwriting another's registration.
 const routeChangeListeners = [];
 
+// 現在表示中のページが返した後片付け関数（無ければ null）。
+// ページハンドラが関数を返した場合だけ設定され、次の遷移の**直前**に呼ばれる。
+// container.innerHTML = '' は #page-container の中しか消せないので、
+// document / window に貼ったリスナーやタイマーはページ自身にしか片付けられない。
+let activeCleanup = null;
+
+/**
+ * 前のページの後片付けを実行する。
+ *
+ * ページ側の例外で遷移そのものが止まらないよう握り潰す（後片付けの失敗より、
+ * 画面が出ないことのほうが遥かに重い）。ここで throw を通すと、handleRoute の
+ * 描画前で止まって**全ルートが真っ白**という以前の事故を再演することになる。
+ */
+function runActiveCleanup() {
+  const cleanup = activeCleanup;
+  activeCleanup = null;
+  if (typeof cleanup !== 'function') return;
+  try {
+    cleanup();
+  } catch (err) {
+    console.error('[router] page cleanup failed', err);
+  }
+}
+
 /**
  * Convert a route template ("/expenses/:id/edit") into a RegExp plus the
  * ordered list of param names it captures. Each ":param" segment matches
@@ -92,8 +116,15 @@ function handleRoute(path) {
   const matched = matchRoute(path);
   const handler = matched ? matched.handler : routes.get('*');
   if (handler) {
+    // DOM を消す前に前ページの後片付けを走らせる。順序が逆だと、片付け側が
+    // 自分の DOM を参照できず（既に消えている）null 参照になる。
+    runActiveCleanup();
     container.innerHTML = '';
-    handler(container, matched ? matched.params : {});
+
+    // ページハンドラが関数を返したら、それを次の遷移時の後片付けとして預かる。
+    // 返さないページは従来どおり何も起きない（全ページを一斉に書き換える必要はない）。
+    const result = handler(container, matched ? matched.params : {});
+    activeCleanup = typeof result === 'function' ? result : null;
   }
 }
 

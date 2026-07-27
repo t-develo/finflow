@@ -45,9 +45,11 @@ router
       console.error('[app] Failed to render expense form (edit)', err);
     });
   })
-  .on('/subscriptions', (container) => {
-    renderSubscriptionPage(container);
-  })
+  // renderSubscriptionPage は「次の遷移時に呼ぶ後片付け関数」を返す。
+  // router.handleRoute がそれを預かるので、戻り値をそのまま返すこと
+  // （ここでブロック本体にして戻り値を捨てると、document に貼った
+  //   ESC リスナーがページ離脱後も残り、他画面で例外を投げる）。
+  .on('/subscriptions', (container) => renderSubscriptionPage(container))
   .on('/categories', (container) => {
     renderCategoryPage(container);
   })
