@@ -244,9 +244,9 @@
        あわせて、モジュールを跨ぐ新 API はオプショナル呼び出し（?.）で
        導入すること。詳細は .claude/rules/javascript/hooks.md を参照。
        ============================================================ -->
-  <link rel="stylesheet" href="/css/main.css?v=20260728">
-  <link rel="stylesheet" href="/css/components.css?v=20260728">
-  <link rel="stylesheet" href="/css/pages.css?v=20260728">
+  <link rel="stylesheet" href="/css/main.css?v=20260729">
+  <link rel="stylesheet" href="/css/components.css?v=20260729">
+  <link rel="stylesheet" href="/css/pages.css?v=20260729">
   <!-- Chart.js はダッシュボード表示時のみ dashboard-page.js が動的に読み込む。
        ここで同期 <script> として読むと、インターネットに出られない LAN 内
        （ラズパイ運用）で DNS/TCP タイムアウトまで <body> の解析が止まる。 -->
@@ -305,6 +305,12 @@
   <!-- Global toast notifications -->
   <ff-toast></ff-toast>
 
-  <script type="module" src="/js/app.js?v=20260728"></script>
+  <!-- 削除などの確認ダイアログ。ここに静的に置いておくことで、
+       初回タップ時の遅延マウント（createElement → appendChild →
+       requestAnimationFrame を待ってから show）を避けられる。
+       この 1 フレームが「削除だけ反応が鈍い」体感の一部だった。 -->
+  <ff-confirm-dialog></ff-confirm-dialog>
+
+  <script type="module" src="/js/app.js?v=20260729"></script>
 </body>
 </html>

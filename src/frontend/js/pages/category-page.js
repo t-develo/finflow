@@ -16,6 +16,8 @@
  */
 
 import { api } from '../utils/api-client.js';
+import { confirmDialog } from '../components/ff-confirm-dialog.js';
+import { toast } from '../components/ff-toast.js';
 import { escapeHtml, sanitizeColor } from '../utils/format.js';
 
 // ---------------------------------------------------------------------------
@@ -317,34 +319,55 @@ function showInlineEditForm(userList, cat, container, contentArea) {
 // Delete category
 // ---------------------------------------------------------------------------
 
+/**
+ * カテゴリを削除する。
+ *
+ * 確認は共通コンポーネント（ff-confirm-dialog）に統一した。
+ * 以前はリスト項目の innerHTML を差し替えるインライン確認だったが、
+ *  - 確認ボタンが .category-list__actions の外側に出るため、
+ *    pages.css のモバイル 44px 指定（min-width）が当たらない
+ *  - キャンセル時に innerHTML を文字列から復元するため、
+ *    復元後の要素はリスナーを持たない別物になる
+ * という 2 つの問題があった。
+ */
 async function handleDeleteCategory(container, contentArea, cat) {
-  // インライン確認（alert/confirmは使用禁止）
-  const userList = contentArea.querySelector('#user-categories-list');
-  const listItem = userList?.querySelector(`[data-id="${cat.id}"]`);
-  if (!listItem) return;
+  // 確認ダイアログはシングルトンで、show() のたびに _resolve が上書きされる。
+  // 連打で 2 回開くと 1 個目の Promise が解決されないまま残るため、
+  // 開いている間は 2 発目を受け付けない。
+  if (deleteInFlight) return;
+  deleteInFlight = true;
 
-  const originalHtml = listItem.innerHTML;
-  listItem.innerHTML = `
-    <span class="category-list__confirm-text">「${escapeHtml(cat.name)}」を削除しますか？</span>
-    <button type="button" class="btn btn--danger btn--sm" id="confirm-delete-${cat.id}">削除</button>
-    <button type="button" class="btn btn--secondary btn--sm" id="cancel-delete-${cat.id}">キャンセル</button>
-  `;
+  try {
+    await runDeleteCategory(container, contentArea, cat);
+  } finally {
+    deleteInFlight = false;
+  }
+}
 
-  listItem.querySelector(`#cancel-delete-${cat.id}`)?.addEventListener('click', () => {
-    listItem.innerHTML = originalHtml;
-    // イベントリスナーを再アタッチするために再レンダリング
-    loadAndRender(container, contentArea);
+/** 削除処理が進行中かどうか（同時に表示できるカテゴリ画面は 1 つなのでモジュール変数で足りる）。 */
+let deleteInFlight = false;
+
+async function runDeleteCategory(container, contentArea, cat) {
+  const confirmed = await confirmDialog.show({
+    title: 'カテゴリの削除',
+    message: `「${cat.name}」を削除しますか？この操作は取り消せません。`,
+    confirmLabel: '削除する',
+    cancelLabel: 'キャンセル',
+    danger: true,
   });
 
-  listItem.querySelector(`#confirm-delete-${cat.id}`)?.addEventListener('click', async () => {
-    try {
-      await api.delete(`/categories/${cat.id}`);
-      await loadAndRender(container, contentArea);
-    } catch (err) {
-      listItem.innerHTML = originalHtml;
-      loadAndRender(container, contentArea);
-    }
-  });
+  if (!confirmed) return;
+
+  try {
+    await api.delete(`/categories/${cat.id}`);
+    toast.show('カテゴリを削除しました', 'success');
+    await loadAndRender(container, contentArea);
+  } catch (err) {
+    // 以前はここで err を握り潰して元に戻すだけだったため、
+    // 「使用中のカテゴリは削除できない」等のサーバー側の拒否が
+    // 「押しても何も起きない」ように見えていた。
+    toast.show(err?.message ?? '削除に失敗しました。', 'error');
+  }
 }
 
 // escapeHtml and sanitizeColor imported from format.js

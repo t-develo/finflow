@@ -49,6 +49,16 @@ class FfConfirmDialog extends HTMLElement {
    * @returns {Promise<boolean>}
    */
   show({ title, message, confirmLabel = '確認', cancelLabel = 'キャンセル', danger = false } = {}) {
+    // このコンポーネントはシングルトンなので、前の show() が未解決のまま
+    // 次の show() が来ると _resolve が上書きされ、前の Promise が
+    // **永久に解決しない**（await している呼び出し元がそこで固まる）。
+    // 呼び出し側にもガードを置いているが、ここでも必ず決着させる。
+    if (this._resolve) {
+      const previous = this._resolve;
+      this._resolve = null;
+      previous(false);
+    }
+
     return new Promise((resolve) => {
       this._resolve = resolve;
       this._renderDialog({ title, message, confirmLabel, cancelLabel, danger });
@@ -116,38 +126,59 @@ class FfConfirmDialog extends HTMLElement {
 
     this.shadowRoot.innerHTML = `
       <style>
+        /* ---------------------------------------------------------------
+           Shadow DOM のため、main.css のモバイル規約（@media (max-width:768px)
+           の .btn { min-height:44px } 等）は**ここには届かない**。
+           そのためタップ領域・ボトムシート化はこのファイル内に自前で書く。
+           CSS カスタムプロパティは Shadow 境界を越えて継承されるので、
+           :root のトークンはそのまま参照できる。
+           --------------------------------------------------------------- */
         :host {
           display: block;
         }
 
+        /* 閉じている間は opacity だけでなく visibility も落とす。
+           opacity:0 だけだと要素はレイアウト上に残り続けるため、
+           - Tab キーで「見えないボタン」にフォーカスが入る
+           - 支援技術からは読み上げ可能なまま
+           という状態になる（.sidebar-overlay が全タップを吸っていた
+           不具合と同じ「見えないのに生きている」系の問題）。
+           visibility の transition は遅延 0s で切り替え、
+           フェードアウトが終わってから消えるようにする。 */
         .dialog-overlay {
           position: fixed;
           inset: 0;
-          background-color: rgba(0, 0, 0, 0.5);
+          background-color: rgba(17, 24, 39, 0.55);
           display: flex;
           align-items: center;
           justify-content: center;
           z-index: 500;
           opacity: 0;
+          visibility: hidden;
           pointer-events: none;
-          transition: opacity 200ms ease;
+          transition: opacity 180ms ease, visibility 0s linear 180ms;
           padding: 16px;
         }
 
         .dialog-overlay--visible {
           opacity: 1;
+          visibility: visible;
           pointer-events: all;
+          transition: opacity 180ms ease, visibility 0s linear 0s;
         }
 
         .dialog {
-          background: var(--color-bg, #ffffff);
-          border-radius: var(--border-radius-lg, 12px);
-          box-shadow: 0 20px 25px rgba(0, 0, 0, 0.1);
+          /* --color-bg は薄グレー(#F9FAFB)の「ページ背景」トークン。
+             カードやダイアログの面は --color-surface(白)が正しい。
+             継承で --color-bg が効いてしまい、ダイアログだけ灰色になっていた。 */
+          background: var(--color-surface, #ffffff);
+          border-radius: var(--border-radius-lg, 16px);
+          box-shadow: var(--shadow-lg, 0 20px 25px rgba(0, 0, 0, 0.15));
           padding: 24px;
           width: 100%;
           max-width: 400px;
-          transform: scale(0.95);
-          transition: transform 200ms ease;
+          transform: scale(0.96);
+          transition: transform 180ms ease;
         }
 
         .dialog-overlay--visible .dialog {
@@ -163,10 +194,11 @@ class FfConfirmDialog extends HTMLElement {
         }
 
         .dialog__message {
-          font-size: 0.875rem;
+          font-size: 0.9375rem;
           color: var(--color-text-secondary, #4B5563);
           line-height: 1.6;
           margin-bottom: 24px;
+          overflow-wrap: anywhere;
           font-family: var(--font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
         }
 
@@ -178,23 +210,38 @@ class FfConfirmDialog extends HTMLElement {
 
         .dialog__cancel-btn,
         .dialog__confirm-btn {
-          padding: 8px 20px;
-          border-radius: var(--border-radius, 8px);
-          font-size: 0.875rem;
-          font-weight: 500;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: var(--tap-target, 48px);
+          padding: 10px 20px;
+          border-radius: var(--border-radius, 10px);
+          font-size: 0.9375rem;
+          font-weight: 600;
           font-family: var(--font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
           cursor: pointer;
-          transition: all 200ms ease;
+          /* タップの即応性: ダブルタップズーム待ちを無くし、
+             iOS の灰色ハイライトの代わりに :active で自前のフィードバックを出す。 */
+          touch-action: manipulation;
+          -webkit-tap-highlight-color: transparent;
+          user-select: none;
+          -webkit-user-select: none;
+          transition: background-color 150ms ease, transform 80ms ease;
+        }
+
+        .dialog__cancel-btn:active,
+        .dialog__confirm-btn:active {
+          transform: scale(0.97);
         }
 
         .dialog__cancel-btn {
-          background: #ffffff;
+          background: var(--color-surface, #ffffff);
           border: 1px solid var(--color-border, #E5E7EB);
           color: var(--color-text, #374151);
         }
 
         .dialog__cancel-btn:hover {
-          background-color: #F3F4F6;
+          background-color: var(--color-muted-bg, #F3F4F6);
         }
 
         .dialog__confirm-btn {
@@ -204,13 +251,13 @@ class FfConfirmDialog extends HTMLElement {
         }
 
         .dialog__confirm-btn:hover {
-          background-color: #2563EB;
-          border-color: #2563EB;
+          background-color: var(--color-primary-dark, #2563EB);
+          border-color: var(--color-primary-dark, #2563EB);
         }
 
         .dialog__confirm-btn--danger {
-          background-color: #EF4444;
-          border-color: #EF4444;
+          background-color: var(--color-danger, #EF4444);
+          border-color: var(--color-danger, #EF4444);
         }
 
         .dialog__confirm-btn--danger:hover {
@@ -218,10 +265,55 @@ class FfConfirmDialog extends HTMLElement {
           border-color: #DC2626;
         }
 
-        .dialog__cancel-btn:focus,
-        .dialog__confirm-btn:focus {
+        .dialog__cancel-btn:focus-visible,
+        .dialog__confirm-btn:focus-visible {
           outline: 2px solid var(--color-primary, #3B82F6);
           outline-offset: 2px;
+        }
+
+        /* モバイル: 下から出るシート。ボタンは全幅・縦積みにして、
+           親指の届く下側に主要な操作を置く。DOM 順（キャンセル → 確認）が
+           そのまま上下になるので、破壊的な「削除する」が下に来る。 */
+        @media (max-width: 768px) {
+          .dialog-overlay {
+            align-items: flex-end;
+            padding: 0;
+          }
+
+          .dialog {
+            max-width: none;
+            border-radius: var(--border-radius-lg, 16px) var(--border-radius-lg, 16px) 0 0;
+            padding: 20px 20px calc(20px + var(--safe-bottom, 0px));
+            transform: translateY(16px);
+          }
+
+          .dialog-overlay--visible .dialog {
+            transform: translateY(0);
+          }
+
+          .dialog__actions {
+            flex-direction: column;
+            gap: 10px;
+          }
+
+          .dialog__cancel-btn,
+          .dialog__confirm-btn {
+            width: 100%;
+            font-size: 1rem;
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .dialog-overlay,
+          .dialog,
+          .dialog__cancel-btn,
+          .dialog__confirm-btn {
+            transition: none;
+          }
+          .dialog__cancel-btn:active,
+          .dialog__confirm-btn:active {
+            transform: none;
+          }
         }
       </style>
 
