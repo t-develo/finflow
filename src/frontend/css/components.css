@@ -69,6 +69,18 @@
    モバイル時の高さ制約は main.css 側の1箇所に一本化し、
    ここでは追加のオーバーライドを置かない。 */
 
+/* ボトムシートのつまみ。デスクトップでは不要なので既定は非表示で、
+   main.css のモバイルブレークポイントで display:block に切り替える。 */
+.modal__grabber {
+  display: none;
+  width: 40px;
+  height: 4px;
+  margin: var(--spacing-sm) auto 0;
+  border-radius: var(--border-radius-pill);
+  background-color: var(--color-border);
+  flex-shrink: 0;
+}
+
 .modal__header {
   display: flex;
   align-items: center;
@@ -131,15 +143,72 @@
   margin-bottom: var(--spacing-xs);
 }
 
+/* ============================================================
+   モーダル → ボトムシート（モバイル）
+   ------------------------------------------------------------
+   従来は min-height:100dvh の全画面だった。全画面は「別の画面に
+   飛ばされた」印象になり、閉じる導線も上端の × だけで遠い。
+   下から迫り上がるシートにすると、
+     - 背後に元の画面が見えるので文脈が失われない
+     - 主要ボタンが親指の届く下側に来る
+   という利点がある。
+
+   **モーダルのモバイル指定はこのブロックに一本化すること。**
+   .modal / .modal__dialog / .modal__footer のベース定義はこのファイルに
+   あり、components.css は main.css より後に読み込まれる。したがって
+   main.css 側に同じ詳細度で書いたオーバーライドは、このファイルの
+   ベース宣言に**後勝ちで負ける**（.modal__footer の padding や
+   align-items で実際に踏んだ）。以前 main.css にあった全画面化も
+   同じ理由でここへ移した。
+   ============================================================ */
 @media (max-width: 768px) {
   .modal {
     padding: 0;
+    /* シートなので下端に寄せる */
+    align-items: flex-end;
   }
-  /* NOTE: モバイル時の .modal__dialog の高さ制約(min-height/max-height)は
-     main.css の @media (max-width:768px) 内に一本化されている。
-     ここで max-height を再宣言すると（このファイルは main.css より後に
-     読み込まれるため）同じ詳細度で単純に後勝ちしてしまい、main.css の
-     dvh 対応を無効化してしまう（実際に起きていたバグ）。追加しないこと。 */
+
+  .modal__dialog {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
+    /* 画面いっぱいにはしない。中身が少なければシートも低いままにする。
+       iOS Safari のツールバー変動に対応するため dvh を後置きで上書き。 */
+    min-height: 0;
+    max-height: 92vh;
+    max-height: 92dvh;
+    box-shadow: var(--shadow-lg);
+    animation: sheet-rise 220ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  /* 上端のつまみ。「下に引いて閉じられそう」という affordance。 */
+  .modal__grabber {
+    display: block;
+  }
+
+  .modal__header {
+    padding-top: var(--spacing-sm);
+  }
+
+  /* フッターは常に見える位置に留める。フォームが長いと保存ボタンが
+     スクロールの下に隠れ、「押せない」と誤解される。
+     safe-area を足さないと iPhone のホームインジケータに重なる。 */
+  .modal__footer {
+    position: sticky;
+    bottom: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-sm);
+    background-color: var(--color-surface);
+    padding: var(--spacing-md) var(--spacing-lg)
+             calc(var(--spacing-md) + var(--safe-bottom));
+  }
+}
+
+@keyframes sheet-rise {
+  from { transform: translateY(12%); }
+  to   { transform: translateY(0); }
 }
 
 /* ------------------------------------------------------------
@@ -195,6 +264,12 @@
 .empty-state__message {
   color: var(--color-text-muted);
   font-size: 0.9375rem;
+}
+
+.empty-state__hint {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-base);
+  opacity: 0.85;
 }
 
 /* ------------------------------------------------------------
@@ -418,6 +493,64 @@
   flex-shrink: 0;
 }
 
+/* ------------------------------------------------------------
+   入力欄のベーススタイル
+   ------------------------------------------------------------
+   `.form-group input`（ハイフン系）には main.css にスタイルがあるが、
+   BEM 系の `.form__input` / `.form__select` / `.form__textarea` には
+   **ベース定義が一切無かった**（存在したのは main.css のモバイル
+   min-height と `--error` 修飾子だけ）。そのためサブスク・カテゴリ・
+   CSV 取込の各フォームは、幅も枠線もブラウザ既定のままで、
+   iPhone では入力欄が本文幅の 6 割ほどしかなかった。
+   ------------------------------------------------------------ */
+.form__input,
+.form__select,
+.form__textarea {
+  display: block;
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  /* 16px 未満だと iOS Safari がフォーカス時にページを勝手にズームする。
+     視覚的な大きさより、この副作用を避けることを優先する。 */
+  font-size: var(--font-size-lg);
+  line-height: 1.5;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.form__textarea {
+  resize: vertical;
+  min-height: 72px;
+}
+
+/* select の三角マークは appearance:none で消えるので自前で描く。 */
+.form__select {
+  padding-right: calc(var(--spacing-md) * 2);
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%236B7280'%3E%3Cpath d='M4.5 6.5 8 10l3.5-3.5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--spacing-sm) center;
+  background-size: 16px 16px;
+}
+
+.form__input:focus,
+.form__select:focus,
+.form__textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-soft);
+}
+
+.form__input::placeholder,
+.form__textarea::placeholder {
+  color: var(--color-text-muted);
+  opacity: 0.8;
+}
+
 .form__error {
   display: block;
   color: var(--color-danger);
@@ -458,6 +591,279 @@
 .btn--danger-hover:hover {
   background-color: var(--color-danger-bg);
   color: var(--color-danger);
+}
+
+/* 破壊的操作だが「面」を張るほど強調したくないボタン（一覧行の削除など）。
+   .btn--danger の塗りつぶしは、一覧に並ぶと赤が主役になってしまう。 */
+.btn--danger-text {
+  background: none;
+  color: var(--color-danger);
+  border: 1px solid transparent;
+}
+
+.btn--danger-text:hover {
+  background-color: var(--color-danger-bg);
+  border-color: var(--color-danger-border);
+}
+
+/* モバイルのシート内など、縦積みで全幅にしたいとき。 */
+.btn--block {
+  width: 100%;
+  justify-content: center;
+}
+
+/* ------------------------------------------------------------
+   FAB（モバイル専用の常設アクションボタン）
+   ------------------------------------------------------------
+   既定は非表示。main.css の @media (max-width:768px) で表示に切り替える。
+   z-index はレイヤ表（overlay 90 / sidebar 100 / hamburger 110 /
+   modal 400 / loading 500 / toast 600 / banner 900）の下位に収まる 80。
+   モーダルやドロワーが開いたら必ず背面に回る位置づけ。
+   ------------------------------------------------------------ */
+.fab {
+  display: none;
+  position: fixed;
+  right: var(--spacing-md);
+  bottom: calc(var(--spacing-md) + var(--safe-bottom));
+  z-index: 80;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border: none;
+  border-radius: 50%;
+  background-color: var(--color-primary);
+  color: #ffffff;
+  box-shadow: var(--shadow-lg);
+  cursor: pointer;
+  /* <a class="fab"> でも使うので下線を消す（支出一覧の追加導線）。 */
+  text-decoration: none;
+  transition: background-color 0.2s, transform 80ms ease;
+}
+
+.fab__icon {
+  font-size: var(--font-size-2xl);
+  line-height: 1;
+}
+
+.fab:hover {
+  background-color: var(--color-primary-dark);
+}
+
+/* 表示切り替えは必ずこのファイル内で行う。main.css のメディアクエリに
+   書くと、後から読まれるこのファイルの `display: none`（ベース宣言）に
+   後勝ちで負けて、モバイルでも出てこない。 */
+@media (max-width: 768px) {
+  .fab {
+    display: flex;
+  }
+}
+
+/* ------------------------------------------------------------
+   サブスクリプションのカードリスト
+   ------------------------------------------------------------
+   従来は 6 列の <table> で、モバイルでは main.css の汎用カード化
+   （.table tr → display:block）に頼っていた。ただしその仕組みは
+   `data-label` 属性から見出しを生成する前提で、サブスクの
+   セルには data-label が無かったため「見出しの無い値の縦積み」に
+   なっていた。金額と次回支払日という主役が読み取れる専用の
+   カードに置き換える。
+   デスクトップ幅では 1 行に整列させ、表に近い一覧性を保つ。
+   ------------------------------------------------------------ */
+.sub-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin: 0;
+  padding: 0;
+}
+
+.sub-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "body   amount"
+    "actions actions";
+  /* start 揃え。center だと金額セルが行全体に対して中央に置かれ、
+     サービス名とベースラインがずれたうえ余白が間延びする。 */
+  align-items: start;
+  gap: var(--spacing-xs) var(--spacing-md);
+  padding: var(--spacing-md);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.sub-card--due {
+  border-color: var(--color-warning-border);
+  background-color: var(--color-warning-bg);
+}
+
+.sub-card--inactive {
+  opacity: 0.72;
+}
+
+.sub-card__body {
+  grid-area: body;
+  min-width: 0;
+}
+
+.sub-card__headline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+}
+
+.sub-card__name {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.sub-card__meta {
+  margin-top: 2px;
+  font-size: var(--font-size-base);
+  color: var(--color-text-muted);
+}
+
+.sub-card__dot {
+  margin: 0 2px;
+}
+
+.sub-card__amount {
+  grid-area: amount;
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  color: var(--color-text);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.sub-card__actions {
+  grid-area: actions;
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-xs);
+  /* 罫線とボタンの間隔を詰める。ボタン自体が 44px の当たり判定を
+     持つので、見た目の余白まで足すとカードが無駄に高くなり、
+     1 画面に 2 件しか入らなくなる。 */
+  margin-top: var(--spacing-xs);
+  padding-top: var(--spacing-xs);
+  border-top: 1px solid var(--color-border);
+  margin-right: calc(var(--spacing-sm) * -1);
+}
+
+.sub-card--due .sub-card__actions {
+  border-top-color: var(--color-warning-border);
+}
+
+/* デスクトップ: 1 行に並べて表のような一覧性にする。 */
+@media (min-width: 769px) {
+  .sub-card {
+    grid-template-columns: 1fr auto auto;
+    grid-template-areas: "body amount actions";
+    gap: var(--spacing-lg);
+    align-items: center;
+  }
+
+  .sub-card__actions {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+  }
+}
+
+/* ------------------------------------------------------------
+   支出のカードリスト
+   ------------------------------------------------------------
+   サブスクと同じ考え方。主役は「説明」と「金額」で、日付と
+   カテゴリは 1 行の補助情報にまとめる。操作ボタン（✏️/🗑️）は
+   44px の当たり判定を保ったまま右端に置く。
+   ------------------------------------------------------------ */
+.exp-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  margin: 0;
+  padding: 0;
+}
+
+.exp-card {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  grid-template-areas: "body amount actions";
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+}
+
+.exp-card__body {
+  grid-area: body;
+  min-width: 0;
+}
+
+.exp-card__description {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.exp-card__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs) var(--spacing-sm);
+  margin-top: 2px;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.exp-card__amount {
+  grid-area: amount;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.exp-card__actions {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+/* 合計バー。一覧の上に置いて、スクロールしなくても総額が分かるようにする。 */
+.expense-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--border-radius);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.expense-total__label {
+  font-size: var(--font-size-base);
+  color: var(--color-text-muted);
+}
+
+.expense-total__value {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ------------------------------------------------------------
