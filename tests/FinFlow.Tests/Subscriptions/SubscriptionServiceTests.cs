@@ -364,6 +364,110 @@ public class SubscriptionServiceTests : IDisposable
     // ヘルパー
     // =====================================================================
 
+    // =====================================================================
+    // 重複登録の防御（二重登録バグの回帰ガード）
+    // =====================================================================
+    //
+    // フロントエンドのリスナー累積バグにより、1 回の「保存」で POST が
+    // 複数回飛んで同じサブスクが二重・三重に登録される不具合があった。
+    // フロント側は修正済みだが、それだけでは塞げない経路が残る:
+    // api-client.js は 15 秒でリクエストを中断するものの、中断されるのは
+    // クライアントの待ち受けだけで、サーバーの INSERT は完了していることが
+    // ある。利用者には「タイムアウトしました」と出るので、当然もう一度
+    // 保存を押す — これで 2 件目が入る。だからサーバー側にも防御を置く。
+
+    [Fact]
+    public async Task CreateSubscriptionAsync_WithDuplicateServiceName_ThrowsConflictException()
+    {
+        // Arrange
+        var first = CreateSubscription(TestUserId, "Netflix", 1490m, new DateOnly(2026, 4, 1));
+        await _service.CreateSubscriptionAsync(first);
+
+        // Act: 同じ内容をもう一度登録する（タイムアウト後の再送を模す）
+        var duplicate = CreateSubscription(TestUserId, "Netflix", 1490m, new DateOnly(2026, 4, 1));
+        var act = async () => await _service.CreateSubscriptionAsync(duplicate);
+
+        // Assert
+        await act.Should().ThrowAsync<ConflictException>()
+            .WithMessage("*Netflix*");
+
+        _dbContext.Subscriptions.Count(s => s.UserId == TestUserId).Should().Be(1);
+    }
+
+    [Theory]
+    [InlineData("netflix")]      // 大文字小文字だけが違う
+    [InlineData("  Netflix  ")]  // 前後の空白だけが違う
+    [InlineData("NETFLIX")]
+    public async Task CreateSubscriptionAsync_WithServiceNameDifferingOnlyByCaseOrWhitespace_ThrowsConflictException(
+        string variant)
+    {
+        // Arrange: 利用者から見れば「同じサービス」なので重複として弾く
+        await _service.CreateSubscriptionAsync(
+            CreateSubscription(TestUserId, "Netflix", 1490m, new DateOnly(2026, 4, 1)));
+
+        // Act
+        var act = async () => await _service.CreateSubscriptionAsync(
+            CreateSubscription(TestUserId, variant, 1490m, new DateOnly(2026, 5, 1)));
+
+        // Assert
+        await act.Should().ThrowAsync<ConflictException>();
+        _dbContext.Subscriptions.Count(s => s.UserId == TestUserId).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task CreateSubscriptionAsync_WithSameServiceNameForDifferentUser_Succeeds()
+    {
+        // Arrange: 重複判定はユーザー単位。他人が Netflix を登録していても
+        // 自分は登録できなければならない（UserId 分離）。
+        await _service.CreateSubscriptionAsync(
+            CreateSubscription(OtherUserId, "Netflix", 1490m, new DateOnly(2026, 4, 1)));
+
+        // Act
+        var created = await _service.CreateSubscriptionAsync(
+            CreateSubscription(TestUserId, "Netflix", 1490m, new DateOnly(2026, 4, 1)));
+
+        // Assert
+        created.Id.Should().BeGreaterThan(0);
+        _dbContext.Subscriptions.Count(s => s.UserId == TestUserId).Should().Be(1);
+        _dbContext.Subscriptions.Count(s => s.UserId == OtherUserId).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task UpdateSubscriptionAsync_KeepingItsOwnServiceName_Succeeds()
+    {
+        // Arrange: 更新時は「自分自身」を重複判定から除外する必要がある。
+        // 除外しないと、名前を変えない普通の更新がすべて 409 になる。
+        var existing = await _service.CreateSubscriptionAsync(
+            CreateSubscription(TestUserId, "Netflix", 1490m, new DateOnly(2026, 4, 1)));
+
+        var updated = CreateSubscription(TestUserId, "Netflix", 1980m, new DateOnly(2026, 5, 1));
+
+        // Act
+        var result = await _service.UpdateSubscriptionAsync(existing.Id, TestUserId, updated);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.Amount.Should().Be(1980m);
+    }
+
+    [Fact]
+    public async Task UpdateSubscriptionAsync_RenamingToAnotherExistingServiceName_ThrowsConflictException()
+    {
+        // Arrange
+        await _service.CreateSubscriptionAsync(
+            CreateSubscription(TestUserId, "Netflix", 1490m, new DateOnly(2026, 4, 1)));
+        var spotify = await _service.CreateSubscriptionAsync(
+            CreateSubscription(TestUserId, "Spotify", 980m, new DateOnly(2026, 4, 10)));
+
+        // Act: Spotify を Netflix に改名しようとする
+        var act = async () => await _service.UpdateSubscriptionAsync(
+            spotify.Id, TestUserId,
+            CreateSubscription(TestUserId, "Netflix", 980m, new DateOnly(2026, 4, 10)));
+
+        // Assert
+        await act.Should().ThrowAsync<ConflictException>();
+    }
+
     private static Subscription CreateSubscription(string userId, string serviceName, decimal amount, DateOnly nextBillingDate) =>
         new()
         {

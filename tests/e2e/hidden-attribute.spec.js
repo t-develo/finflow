@@ -17,6 +17,7 @@
 'use strict';
 
 const { test, expect } = require('@playwright/test');
+const { subscriptionAddButton } = require('./helpers/subscriptions');
 const { registerAndLoginViaUi } = require('./helpers/auth');
 
 test.describe('hidden 属性の実効性', () => {
@@ -28,7 +29,7 @@ test.describe('hidden 属性の実効性', () => {
     await registerAndLoginViaUi(page, request, baseURL);
     await page.goto('/subscriptions');
 
-    await page.locator('#add-subscription-btn').tap();
+    await subscriptionAddButton(page).tap();
     await page.locator('#subscription-modal').waitFor({ state: 'visible' });
 
     const deleteBtn = page.locator('#modal-delete-btn');
@@ -52,7 +53,7 @@ test.describe('hidden 属性の実効性', () => {
     await page.goto('/subscriptions');
 
     // Create a subscription first so there is a row to edit.
-    await page.locator('#add-subscription-btn').tap();
+    await subscriptionAddButton(page).tap();
     await page.locator('#subscription-modal').waitFor({ state: 'visible' });
 
     await page.locator('#service-name').tap();

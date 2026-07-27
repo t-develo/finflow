@@ -14,6 +14,7 @@
 'use strict';
 
 const { registerNewUser, loginViaUi } = require('./auth');
+const { openSubscriptionModal } = require('./subscriptions');
 
 /**
  * Logs in via the real API (not the UI helper) to obtain a bearer token,
@@ -123,8 +124,7 @@ function buildScreens() {
       path: '/subscriptions',
       requiresAuth: true,
       setup: async (page) => {
-        await page.locator('#add-subscription-btn').tap();
-        await page.locator('#subscription-modal').waitFor({ state: 'visible' });
+        await openSubscriptionModal(page);
       },
     },
     { name: 'カテゴリ管理画面', path: '/categories', requiresAuth: true },
