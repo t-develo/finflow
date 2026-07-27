@@ -4,6 +4,219 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FinFlow - 家計・サブスク管理</title>
+
+  <!-- ============================================================
+       起動ガード（インライン・最優先）
+       ------------------------------------------------------------
+       **必ずインラインで置くこと。外部 .js にしてはいけない。**
+       これはキャッシュ事故から復帰するための仕組みなので、それ自体が
+       キャッシュ対象になっては意味がない。index.html はサーバの
+       Cache-Control: no-cache により毎回再検証され、リロードでも必ず
+       取得し直されるため、ここだけは確実に最新版が動く。
+
+       解決する問題:
+       ビルドステップが無いため、js/*.js は 1 ファイル 1 URL で
+       それぞれ独立したキャッシュエントリになる。index.html の ?v= は
+       <script src> と <link href> にしか効かず、app.js が import する
+       router.js / utils/*.js / pages/*.js には伝播しない。そのため端末上で
+       「新しい router.js + 古い api-client.js」のような混在が起こりうる。
+       実際に、後から追加した loadingManager.reset() を古い api-client.js が
+       持っておらず、handleRoute() の最初の実行文で TypeError → 描画前に停止 →
+       **全ルートが真っ白**という事故が起きた（iPhone / iOS Safari）。
+       そして window.onerror が無かったため、手掛かりが何も残らなかった。
+
+       やること:
+       1. 起動失敗を検知する（例外・リソース読み込み失敗・無言のハング）
+       2. 1 回だけ自動でキャッシュを破棄して再読み込みする（自己修復）
+       3. それでも駄目なら、白画面ではなく理由の見えるエラー画面を出す
+       ============================================================ -->
+  <script>
+  (function () {
+    'use strict';
+
+    // ES5 で書いている。モジュール構文を解釈できない環境でも、この
+    // ガード自体は動いてエラー画面を出せるようにするため。
+    var BOOT_TIMEOUT_MS = 8000;
+    var SELF_HEAL_KEY = 'ff_selfheal';
+    var handled = false;
+
+    /** 自己修復の実行済みフラグに使う値。app.js の src（?v= を含む）をそのまま
+     *  使うことで、?v= を更新すれば自動的に「新しい世代」として再試行できる。 */
+    function assetVersion() {
+      var el = document.querySelector('script[type="module"][src]');
+      return (el && el.getAttribute('src')) || 'unknown';
+    }
+
+    function readFlag() {
+      try { return sessionStorage.getItem(SELF_HEAL_KEY); } catch (e) { return null; }
+    }
+    function writeFlag(value) {
+      try { sessionStorage.setItem(SELF_HEAL_KEY, value); } catch (e) { /* private mode 等 */ }
+    }
+
+    /**
+     * 破棄すべき同一オリジンの JS/CSS の URL を集める。
+     * 一覧をハードコードしない — ファイルを増やしたときに更新し忘れる罠を作らないため。
+     */
+    function collectAssetUrls() {
+      var seen = {};
+      var out = [];
+      function add(url) {
+        if (url && !seen[url]) { seen[url] = true; out.push(url); }
+      }
+
+      // 実際にこのページが参照している URL（?v= 付きのものも正しく拾える）
+      var nodes = document.querySelectorAll('script[src], link[rel="stylesheet"][href]');
+      for (var i = 0; i < nodes.length; i++) {
+        add(nodes[i].getAttribute('src') || nodes[i].getAttribute('href'));
+      }
+
+      // 実際に読み込まれた依存モジュール（import された js は resource entry に出る）
+      try {
+        var entries = performance.getEntriesByType('resource');
+        for (var j = 0; j < entries.length; j++) {
+          var name = entries[j].name;
+          if (name.indexOf(location.origin + '/') !== 0) continue;
+          var path = name.slice(location.origin.length);
+          if (path.indexOf('/js/') === 0 || path.indexOf('/css/') === 0) add(path);
+        }
+      } catch (e) { /* performance 非対応 */ }
+
+      // 起動の極初期に落ちて上記が揃わない場合の下限。app.js から芋づるに読まれる中核。
+      add('/js/router.js');
+      add('/js/utils/api-client.js');
+      add('/js/utils/auth.js');
+
+      return out;
+    }
+
+    /**
+     * 焼き付いた古いキャッシュを破棄して再読み込みする。
+     *
+     * fetch の cache:'reload' は「HTTP キャッシュを無視して取得し、その応答で
+     * キャッシュエントリを更新する」。URL を変えずに古いエントリを置き換えられる
+     * 唯一の手段で、?v= が届かない import 先モジュールに対してはこれしか効かない。
+     */
+    function purgeAndReload() {
+      var urls = collectAssetUrls();
+      if (typeof fetch !== 'function' || !urls.length) { location.reload(); return; }
+
+      var pending = urls.length;
+      function step() { pending -= 1; if (pending <= 0) location.reload(); }
+      for (var i = 0; i < urls.length; i++) {
+        fetch(urls[i], { cache: 'reload' }).then(step, step);
+      }
+      // 応答が返らない端末でも必ず前に進める
+      setTimeout(function () { location.reload(); }, 10000);
+    }
+
+    /** 白画面の代わりに、理由と復旧手段が見えるエラー画面を出す。 */
+    function showBootError(detail) {
+      var host = document.body || document.documentElement;
+
+      var box = document.createElement('div');
+      box.setAttribute('role', 'alert');
+      // role="alert" はページ内のフォームエラーでも使われるため、
+      // この起動エラー画面を一意に特定できる目印を付ける（E2E からも使う）。
+      box.setAttribute('data-ff-boot-error', '');
+      box.style.cssText =
+        'position:fixed;top:0;right:0;bottom:0;left:0;z-index:2147483647;' +
+        'overflow:auto;-webkit-overflow-scrolling:touch;background:#ffffff;' +
+        'color:#1f2937;padding:32px 20px;line-height:1.7;' +
+        'font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;';
+
+      var title = document.createElement('h1');
+      title.textContent = '画面を表示できませんでした';
+      title.style.cssText = 'font-size:20px;margin:0 0 16px;color:#b91c1c;';
+
+      var desc = document.createElement('p');
+      desc.textContent =
+        'この端末に古いファイルが残っている可能性があります。'
+        + '下のボタンでキャッシュを破棄して再読み込みしてください。';
+      desc.style.cssText = 'margin:0 0 20px;font-size:15px;';
+
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = 'キャッシュを消して再読み込み';
+      // モバイルのタップ領域 44px 規約に合わせる
+      button.style.cssText =
+        'display:block;width:100%;min-height:44px;padding:12px 16px;margin:0 0 24px;' +
+        'font-size:16px;font-weight:600;color:#ffffff;background:#2563eb;' +
+        'border:0;border-radius:8px;cursor:pointer;';
+      button.addEventListener('click', function () {
+        button.disabled = true;
+        button.textContent = '再読み込み中...';
+        purgeAndReload();
+      });
+
+      // 技術的な詳細。Mac が無い環境で実機の原因を知る唯一の手段になるので必ず出す。
+      var details = document.createElement('details');
+      var summary = document.createElement('summary');
+      summary.textContent = '技術的な詳細';
+      summary.style.cssText = 'cursor:pointer;font-size:14px;color:#6b7280;min-height:44px;line-height:44px;';
+      var pre = document.createElement('pre');
+      // textContent で入れる（エラー文字列を HTML として解釈させない）
+      pre.textContent = String(detail);
+      pre.style.cssText =
+        'white-space:pre-wrap;word-break:break-word;font-size:12px;color:#374151;' +
+        'background:#f3f4f6;padding:12px;border-radius:6px;margin:8px 0 0;';
+      details.appendChild(summary);
+      details.appendChild(pre);
+
+      box.appendChild(title);
+      box.appendChild(desc);
+      box.appendChild(button);
+      box.appendChild(details);
+      host.appendChild(box);
+    }
+
+    /** 起動失敗の共通処理。自己修復は 1 世代につき 1 回だけ試す（ループ防止）。 */
+    function fail(detail) {
+      if (handled || window.__ffBooted) return;
+      handled = true;
+
+      var version = assetVersion();
+      if (readFlag() !== version) {
+        writeFlag(version);
+        purgeAndReload();
+        return;
+      }
+      showBootError(detail);
+    }
+
+    // 捕捉フェーズで拾うことで、未捕捉例外に加えて
+    // <script> / <link> の読み込み失敗（これらは bubble しない）も検知できる。
+    window.addEventListener('error', function (event) {
+      if (window.__ffBooted) return;
+      var target = event && event.target;
+      if (target && target !== window && target.tagName) {
+        fail('リソースの読み込みに失敗しました: '
+          + (target.src || target.href || target.tagName));
+      } else {
+        fail((event && event.message) || '不明なエラー');
+      }
+    }, true);
+
+    window.addEventListener('unhandledrejection', function (event) {
+      if (window.__ffBooted) return;
+      var reason = event && event.reason;
+      fail('未処理の Promise 拒否: '
+        + ((reason && (reason.stack || reason.message)) || String(reason)));
+    });
+
+    // 例外を投げずに固まる経路（モジュールが永久に解決しない等）も拾う。
+    // app.js は router.start() の後に window.__ffBooted を立てる。
+    setTimeout(function () {
+      if (window.__ffBooted) {
+        // 正常起動したので、次の障害時にまた自己修復を試せるようフラグを消す
+        try { sessionStorage.removeItem(SELF_HEAL_KEY); } catch (e) { /* noop */ }
+        return;
+      }
+      fail('起動が ' + (BOOT_TIMEOUT_MS / 1000) + ' 秒以内に完了しませんでした。');
+    }, BOOT_TIMEOUT_MS);
+  })();
+  </script>
+
   <!-- ============================================================
        アセットのバージョンクエリ (?v=)
        ------------------------------------------------------------
@@ -15,19 +228,37 @@
        すでに端末に焼き付いてしまったキャッシュには URL を変える
        この方法でしか即座に対抗できない。
 
-       限界: ES モジュールの import 指定子にクエリは伝播しないため、
+       限界（重要）: ES モジュールの import 指定子にクエリは伝播しないため、
        app.js が import する router.js / utils/*.js / pages/*.js には
-       ?v= が付かない。それらはサーバー側の no-cache に依存する。
-       （全 import に手で ?v= を書くのは保守性を著しく損なうため採用しない）
+       ?v= が付かない。**つまり ?v= を更新しても、それらのモジュールは
+       古いままになりうる。**（全 import に手で ?v= を書くのは保守性を
+       著しく損なうため採用しない）
+
+       この限界は次の 2 つで塞いでいる:
+       1. サーバー側の Cache-Control: no-cache (Program.cs)
+          → 以後のリクエストは必ず再検証されるので混在は起きない。
+            ただし**このヘッダが配信される前に焼き付いたキャッシュ**には効かない。
+       2. 上のインライン起動ガード
+          → 1 が効かなかった端末で混在が起きても、自己修復して復帰する。
+
+       あわせて、モジュールを跨ぐ新 API はオプショナル呼び出し（?.）で
+       導入すること。詳細は .claude/rules/javascript/hooks.md を参照。
        ============================================================ -->
-  <link rel="stylesheet" href="/css/main.css?v=20260727">
-  <link rel="stylesheet" href="/css/components.css?v=20260727">
-  <link rel="stylesheet" href="/css/pages.css?v=20260727">
+  <link rel="stylesheet" href="/css/main.css?v=20260728">
+  <link rel="stylesheet" href="/css/components.css?v=20260728">
+  <link rel="stylesheet" href="/css/pages.css?v=20260728">
   <!-- Chart.js はダッシュボード表示時のみ dashboard-page.js が動的に読み込む。
        ここで同期 <script> として読むと、インターネットに出られない LAN 内
        （ラズパイ運用）で DNS/TCP タイムアウトまで <body> の解析が止まる。 -->
 </head>
 <body>
+  <noscript>
+    <div style="padding:32px 20px;line-height:1.7;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;">
+      <h1 style="font-size:20px;margin:0 0 16px;color:#b91c1c;">JavaScript が無効です</h1>
+      <p style="margin:0;font-size:15px;">FinFlow の利用には JavaScript が必要です。ブラウザの設定で有効にしてください。</p>
+    </div>
+  </noscript>
+
   <div id="app">
     <!-- Sidebar dim overlay (mobile) -->
     <div id="sidebar-overlay" class="sidebar-overlay" aria-hidden="true"></div>
@@ -74,6 +305,6 @@
   <!-- Global toast notifications -->
   <ff-toast></ff-toast>
 
-  <script type="module" src="/js/app.js?v=20260727"></script>
+  <script type="module" src="/js/app.js?v=20260728"></script>
 </body>
 </html>

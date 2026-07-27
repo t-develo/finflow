@@ -58,7 +58,15 @@ function handleRoute(path) {
   // 画面遷移のたびに、前の画面で出しっぱなしになったローディング膜を片付ける。
   // .loading-overlay は document.body 直下に付くため #page-container の
   // クリアでは消えず、残ると次の画面が丸ごと操作不能になる。
-  loadingManager.reset();
+  //
+  // オプショナル呼び出しにしているのは意図的。ビルドステップが無く、各モジュールが
+  // それぞれ独立した URL / キャッシュエントリとして取得されるため、端末上で
+  // 「新しい router.js + 古い api-client.js」という組み合わせが成立しうる。
+  // reset() は後から追加したメソッドなので、素で呼ぶと古い api-client.js との
+  // 組み合わせで TypeError になり、これは handleRoute() の最初の実行文
+  // （container.innerHTML に触れる前）なので**全ルートが真っ白**になる。実際に発生した。
+  // 詳細と規約は .claude/rules/javascript/hooks.md を参照。
+  loadingManager?.reset?.();
 
   const sidebar = document.getElementById('sidebar');
   const mainContent = document.getElementById('main-content');
