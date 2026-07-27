@@ -170,6 +170,7 @@ sudo systemctl start finflow
 | データが消えた | `Database__Provider` が `Sqlite` か確認（`InMemory` だと再起動で消える） |
 | DB に書き込めない | `/var/lib/finflow` の所有者が `finflow` か確認（`ls -la /var/lib/finflow`） |
 | 画面が真っ白 | `/opt/finflow/wwwroot/index.html` があるか確認。無ければ `deploy.sh` を再実行 |
+| **フロントを直したのに端末で直らない** | ブラウザのキャッシュ。[下の節](#フロントエンドを修正したのに端末で反映されない)を参照 |
 
 ### `fatal signal was delivered to the control process` と出て起動しない
 
@@ -230,6 +231,45 @@ systemctl show finflow -p Environment
 sudo systemctl reset-failed finflow
 sudo systemctl start finflow
 ```
+
+### フロントエンドを修正したのに端末で反映されない
+
+「修正して deploy したのに、スマホでは相変わらず同じ不具合が出る」という場合、
+**まず疑うのはブラウザのキャッシュ**。実際にこれで
+「ログイン画面が透明な要素に覆われてタップできない」という修正済みの不具合が
+iPhone 実機だけで再現し続けた事例がある。
+
+#### 切り分け手順
+
+1. **プライベートウィンドウで開く**（iOS Safari: タブ一覧 →「プライベート」）
+   - ここで直っていれば **原因はキャッシュで確定**
+2. サーバーが正しいヘッダーを返しているか確認する
+
+```bash
+curl -sI http://localhost:5212/css/main.css | grep -i cache-control
+# 期待: cache-control: no-cache, must-revalidate
+
+curl -s http://localhost:5212/ | grep -o 'css/main.css?v=[0-9]*'
+# 期待: css/main.css?v=20260727 のようにバージョンクエリが付いている
+```
+
+3. 配信されているファイルが本当に新しいか確認する
+
+```bash
+# リポジトリの内容と、配信中の実体が一致しているか
+diff <(curl -s http://localhost:5212/css/main.css) src/frontend/css/main.css && echo "一致"
+```
+
+#### 対策（実装済み）
+
+- `Program.cs` が全静的ファイルに `Cache-Control: no-cache, must-revalidate` を付与する。
+  これで**以後**は必ず ETag による再検証が行われる。
+- `index.html` は CSS/JS を `?v=<日付>` 付きで参照する。
+  URL 自体が変わるので、**すでに端末に焼き付いてしまったキャッシュ**にも即座に対抗できる。
+
+> **重要:** フロントエンド（`src/frontend/css/`, `src/frontend/js/`）を変更したら、
+> `src/frontend/index.html` の `?v=` の値を必ず更新すること。
+> ビルドステップを持たない方針のため、この値は手動管理になっている。
 
 ### 起動状態の一括確認
 

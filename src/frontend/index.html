@@ -4,13 +4,28 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FinFlow - 家計・サブスク管理</title>
-  <link rel="stylesheet" href="/css/main.css">
-  <link rel="stylesheet" href="/css/components.css">
-  <link rel="stylesheet" href="/css/pages.css">
-  <!-- Chart.js (Sprint 2: ダッシュボードグラフ用) -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"
-          integrity="sha384-OLBgp1GsljhM2TJ+sbHjaiH9txEUvgdDTAzHv2P24donTt6/529l+9Ua0vFImLlb"
-          crossorigin="anonymous"></script>
+  <!-- ============================================================
+       アセットのバージョンクエリ (?v=)
+       ------------------------------------------------------------
+       ビルドステップを持たない方針のため、CSS/JS のキャッシュ破棄は
+       この手書きのバージョン文字列で行う。**CSS または JS を変更したら
+       必ずこの値を更新すること。**
+       サーバー側の Cache-Control: no-cache (Program.cs) と二重の防御。
+       no-cache は「これから取得するもの」を確実に新しくするが、
+       すでに端末に焼き付いてしまったキャッシュには URL を変える
+       この方法でしか即座に対抗できない。
+
+       限界: ES モジュールの import 指定子にクエリは伝播しないため、
+       app.js が import する router.js / utils/*.js / pages/*.js には
+       ?v= が付かない。それらはサーバー側の no-cache に依存する。
+       （全 import に手で ?v= を書くのは保守性を著しく損なうため採用しない）
+       ============================================================ -->
+  <link rel="stylesheet" href="/css/main.css?v=20260727">
+  <link rel="stylesheet" href="/css/components.css?v=20260727">
+  <link rel="stylesheet" href="/css/pages.css?v=20260727">
+  <!-- Chart.js はダッシュボード表示時のみ dashboard-page.js が動的に読み込む。
+       ここで同期 <script> として読むと、インターネットに出られない LAN 内
+       （ラズパイ運用）で DNS/TCP タイムアウトまで <body> の解析が止まる。 -->
 </head>
 <body>
   <div id="app">
@@ -59,6 +74,6 @@
   <!-- Global toast notifications -->
   <ff-toast></ff-toast>
 
-  <script type="module" src="/js/app.js"></script>
+  <script type="module" src="/js/app.js?v=20260727"></script>
 </body>
 </html>

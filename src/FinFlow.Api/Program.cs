@@ -187,8 +187,27 @@ app.UseAuthorization();
 app.MapControllers();
 
 // Serve static frontend files
-app.UseStaticFiles();
-app.MapFallbackToFile("index.html");
+//
+// キャッシュ制御を明示する理由:
+// 既定の UseStaticFiles() は ETag / Last-Modified は付けるが Cache-Control を付けない。
+// その場合ブラウザは「ヒューリスティックキャッシュ」に落ち、再検証せずにローカルの
+// コピーを使い続ける（iOS Safari は特に顕著）。実際に、フロントエンドの修正を配信した
+// 後も端末側が修正前の CSS を使い続け、「直したはずの不具合が実機で再現し続ける」
+// という事象が発生した。LAN 内配信で 304 の往復コストは無視できるため、
+// no-cache（= キャッシュはするが必ず再検証する）に統一する。
+//
+// なお MapFallbackToFile は内部で独立した StaticFileMiddleware を実行するため、
+// 同じ options を渡さないと index.html にだけヘッダーが付かない。
+var staticFileOptions = new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        ctx.Context.Response.Headers.CacheControl = "no-cache, must-revalidate";
+    }
+};
+
+app.UseStaticFiles(staticFileOptions);
+app.MapFallbackToFile("index.html", staticFileOptions);
 
 // Apply EF Core migrations automatically on startup (skip for InMemory provider used in tests)
 using (var scope = app.Services.CreateScope())

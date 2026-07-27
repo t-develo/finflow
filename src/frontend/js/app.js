@@ -142,6 +142,16 @@ function updateHamburgerVisibility(isAuthPage) {
 // router.js) so we can keep the hamburger button in sync explicitly,
 // instead of inferring it indirectly from sidebar class mutations.
 router.onRouteChange((isAuthPage) => {
+  // ドロワーは「サイドバー内の [data-navigo] リンクのクリック」でしか
+  // 閉じていなかった（下の sidebar クリックハンドラ）。そのため
+  //   - ログアウトボタン（#logout-btn は [data-navigo] ではない）
+  //   - 401 応答による /login へのリダイレクト
+  //   - ブラウザの戻る/進む（popstate）
+  // のいずれかで遷移すると、.sidebar-overlay--visible が付いたまま残る。
+  // このとき overlay は pointer-events:auto の全画面要素なので、
+  // 遷移先（多くはログイン画面）のタップを丸ごと吸い込んでしまう。
+  // 遷移経路によらず必ず閉じることで、この穴を塞ぐ。
+  closeSidebar();
   updateHamburgerVisibility(isAuthPage);
 });
 

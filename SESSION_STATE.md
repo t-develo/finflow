@@ -5,91 +5,80 @@
 
 ## 最終更新
 
-- **日時:** 2026-07-26
-- **担当者/エージェント:** Claude Code（ラズパイ実機で起きたサービス起動失敗の修正）
+- **日時:** 2026-07-27
+- **担当者/エージェント:** Claude Code（iPhone でログイン画面が操作できない問題の修正）
 
 ## 現在のスプリント・マイルストーン
 
 - **スプリント:** Sprint 3 相当（機能は一通り実装済み、品質・回帰テスト・運用整備フェーズ）
-- **フォーカス:**
-  1. ラズベリーパイでの常駐運用（systemd 自動起動 + SQLite 永続化）← 本ブランチ
-  2. モバイル操作性の修正と Playwright E2E 回帰テスト整備 ← main で完了済み
-- **ブランチ:** `claude/finflow-service-startup-error-qkfzgj`（PR #19 マージ後の `main` から分岐）
+- **フォーカス:** ラズパイ常駐運用中に実機で見つかった不具合の修正
+- **ブランチ:** `claude/login-screen-input-issue-mc3lj5`（`main` = `67d75b2` から分岐）
 
 ## 直前の作業内容
 
-### 完了したタスク（C: ラズパイ実機での起動失敗を修正 — 本ブランチ）
+### 完了したタスク（D: iPhone でログイン画面が操作できない — 本ブランチ）
 
-実機で `sudo ./infra/raspi/install.sh` を実行したところ、ビルド・配置は成功するが
-`systemctl start finflow` が
-`Job for finflow.service failed because a fatal signal was delivered to the control process.`
-で失敗した。
+systemd 常駐は成功しているが、**iPhone / iOS Safari で `/login` を開くと
+「見た目は正常なのにタップが一切効かない」**という報告。
+PR #18 (`3eddd1f`) の `.sidebar-overlay` の `pointer-events` 修正は HEAD に入っており、
+**ソース上 `/login` を静的に覆う要素は存在しない**ことを確認したうえで、
+「修正が端末に届いていない経路」と「修正が塞ぎ切れていない経路」の両方を潰した。
 
-- **根本原因: `finflow.service` の `Environment=` にクォートされていない空白があった。**
-  systemd の `Environment=` は「空白区切りの代入リスト」として解釈されるため、
-  `Environment=ConnectionStrings__DefaultConnection=Data Source=/var/lib/finflow/finflow.db` は
-  `ConnectionStrings__DefaultConnection=Data` と `Source=/var/lib/...` の**2変数に分割**されていた。
-  結果 `UseSqlite("Data")` となり `Program.cs:199` の `db.Database.Migrate()` で例外 →
-  .NET は Linux で未処理例外を `abort()`（SIGABRT）で終了するため
-  systemd が `result=signal` と判定し上記メッセージになっていた。
-  → `Environment=` の行を一律ダブルクォートで囲んだ。
-  分割後の `Source=...` も文法上正しい代入なので**警告が一切出ず**、
-  `systemd-analyze verify` でも検出できない点に注意（`systemd-analyze` で実証済み）。
-- **失敗時にログが出ない問題を修正** — `deploy.sh` の `systemctl start` が `set -e` 配下で
-  無防備だったため、用意されていた journalctl の案内に到達せずスクリプトが中断していた。
-  `fail_with_logs()` を追加し、`systemctl status` と `journalctl -n 50` を必ず表示するようにした。
-- **start limit 対策** — `Restart=always` で失敗を繰り返した後は起動を拒否されるため、
-  `deploy.sh` に `systemctl reset-failed` を追加。
-- **ドキュメント** — `docs/RASPBERRY_PI_DEPLOYMENT.md` に
-  「`fatal signal was delivered to the control process` と出て起動しない」節を追加。
-  メッセージの読み方（＝アプリの未処理例外）、例外別の対処表、
-  `systemctl show finflow -p Environment` による切り分け手順を記載。
+- **本命: 静的ファイルにキャッシュ制御が無かった**
+  `app.UseStaticFiles()` を素で呼ぶと ETag / Last-Modified は付くが `Cache-Control` が付かない。
+  この場合ブラウザはヒューリスティックキャッシュに落ち、**再検証せずに修正前の CSS を
+  使い続ける**（iOS Safari で特に顕著）。「見た目は普通だがタップが効かない」＝
+  修正前の透明シャッターがそのまま生きている状態と完全に一致する。
+  → `Program.cs` で `Cache-Control: no-cache, must-revalidate` を全静的ファイルに付与。
+  **`MapFallbackToFile` は内部で独立した StaticFileMiddleware を実行する**ため、
+  同じ `StaticFileOptions` を渡さないと index.html にだけヘッダーが付かない点に注意。
+  → あわせて `index.html` の CSS/JS 参照に `?v=20260727` を付与。
+  サーバー側ヘッダーは「これから取得するもの」しか直せないが、
+  URL を変えるこの方法は**すでに端末に焼き付いたキャッシュ**にも即座に効く。
 
-> **教訓:** systemd ユニットに設定を足すときは、値に空白が入りうるなら必ずクォートする。
-> 検証は `systemctl show <unit> -p Environment` で**解釈後の値**を見ること。
+- **`.loading-overlay` の固着** — `position:fixed; inset:0; z-index:500` の全画面要素を
+  `api-client.js` が `document.body` 直下に付け、除去は `finally` の `hide()` のみ。
+  **fetch にタイムアウトが無かった**ため、LAN 断や Pi のハングで Promise が解決しないと
+  overlay が永久に残り、画面全体が操作不能になる。`#page-container` の外なのでルート遷移でも消えない。
+  → `AbortController` によるタイムアウト（通常 15 秒 / アップロード 120 秒）、
+  `loadingManager.reset()` の追加、ルート遷移時と 401 リダイレクト時の掃除を実装。
 
-### 完了したタスク（A: ラズパイ常駐化 — PR #19 でマージ済み）
+- **ドロワー状態がルート遷移でリセットされなかった** — ドロワーは
+  「サイドバー内の `[data-navigo]` クリック」でしか閉じていなかったため、
+  ログアウトボタン（`#logout-btn` は `[data-navigo]` ではない）・401 リダイレクト・
+  `popstate` のいずれかで `/login` に来ると `.sidebar-overlay--visible`
+  （`pointer-events:auto` の全画面要素）が残り、遷移先の全タップを吸い込んでいた。
+  → `router.onRouteChange` で必ず `closeSidebar()` を呼ぶようにした。
 
-- **systemd サービス化** — `infra/raspi/finflow.service` を追加。ラズパイ起動時に自動開始、
-  クラッシュ時は 10 秒後に自動復帰。`Type=notify` で実際の待受開始を待つ。
-  あわせて `infra/raspi/install.sh`（初回セットアップ）と `deploy.sh`（更新）を追加。
-- **SQLite プロバイダ対応** — `Database:Provider`（`InMemory`/`SqlServer`/`Sqlite`）を導入。
-  既定値は従来どおり（Development=InMemory / それ以外=SqlServer）なので Azure は無変更。
-- **金額の精度問題を修正** — SQLite では `decimal(18,2)` 列が NUMERIC affinity となり
-  小数を含む金額が REAL（浮動小数点）で保存され丸め誤差が出る
-  （`99999999999999.99` → `99999999999999.98`）。SQLite の場合のみ最小単位(×100)の
-  `long` へ値変換して INTEGER 列に保存するようにした。C# 側は `decimal` のまま。
-- **SQLite 用マイグレーション** — `src/FinFlow.Infrastructure.Sqlite` を新設し、
-  SQL Server 用（Azure）とアセンブリを分けて共存させた。
-- **ページング順序の修正** — `ExpenseService.ApplyFilter` が `OrderBy` 無しで `Skip/Take` して
-  いたため、リレーショナル DB ではページ間で行の重複・欠落が起こりうる状態だった。
-  日付降順（同日は Id 降順）で固定。
-- **HTTPS リダイレクト** — `Https:RedirectEnabled`（既定 true）で無効化可能にした。
-  HTTP のみの LAN 構成でのログ汚染を防ぐ。既定値は従来どおりのため他環境に影響なし。
-- **ドキュメント** — `docs/RASPBERRY_PI_DEPLOYMENT.md` を新規作成。
-  `docs/DEPLOYMENT.md` の古い記述（ポート 5000/5001、SQL Server 前提）を修正。
+- **Chart.js の同期 CDN `<script>` を削除** — `integrity` が**空文字列の SHA-384**
+  （プレースホルダ）で永久にロードされないうえ、`defer`/`async` 無しだったため、
+  ネットに出られない LAN 内 Pi では DNS/TCP タイムアウトまで `<body>` の解析が止まり、
+  その間ページ全体がタップに反応しない。ダッシュボード表示時に動的ロードする方式に変更。
+  既存の `renderCategoryListFallback` がそのままフォールバックとして機能する。
 
-### 完了したタスク（B: モバイル操作性 — main から取り込み / PR #18）
+- **`.modal` にも `pointer-events` 規律を横展開** — `hidden` 属性だけが最後の砦という
+  構造は、旧 `.sidebar-overlay` と同型で壊れるため。
 
-「スマホでログイン画面のタップが一切効かない」という報告を起点に、全画面のモバイル操作性を監査し修正した。
+> **教訓:** 「修正したのに実機で直らない」ときは、コードを疑う前に
+> **プライベートウィンドウで開いて切り分ける**こと。
+> ビルドステップの無いフロントエンドでは、キャッシュ破棄は自動化されない。
 
-- **根本原因の修正**: `.sidebar-overlay` がモバイル幅で `opacity:0` のまま `position:fixed; inset:0; z-index:90` の
-  全画面当たり判定を持ち続け、全タップを吸っていた問題を `pointer-events: none/auto` の切り替えで解消
-- `[hidden]` 属性が同詳細度の作成者スタイル（`.btn` 等）に負けて無視される問題に対し、`[hidden]{display:none!important}`
-  のグローバルガードを追加（サブスク新規作成時の削除ボタン残存、認証画面のハンバーガー誤表示等を解消）
-- 未定義だった約100個のBEMクラスを補完（`src/frontend/css/components.css`・`src/frontend/css/pages.css` を新設）
-- `/expenses/new` と `/expenses/:id/edit` がルーター未登録で到達不能だった問題を `router.js` の `:param` パターン
-  マッチ対応で解消
-- `index.html` のアセット参照をルート相対パスに変更。深いURLの直接アクセス・リロード時に JS/CSS が
-  読み込めなかった問題を解消
-- CSV取込のドロップゾーンに `click` ハンドラを追加（従来は dragover/drop のみでタッチデバイスでは死領域だった）
-- `GET /api/expenses` のレスポンス形式とフロント側の期待の不一致を修正。`SumExpensesAsync` を追加し
-  `totalAmount` をAPIレスポンスに追加（ページングと独立した全件合計）
-- ドロワー展開時にハンバーガーボタンが隠れ再タップで閉じられない問題を修正
-- タップ領域を44px確保（モバイル時のみ）
-- `ExpenseResponse` に `CategoryColor` を追加（カテゴリバッジが常にグレーだった問題）
-- Playwright によるタッチエミュレーションE2Eスイートを `tests/e2e/` に追加（Chromium）
-- `docs/frontend-e2e-checklist.md` に「10. モバイル操作性」節を追記
+### 完了したタスク（C: ラズパイ実機の起動失敗 — PR #20 でマージ済み）
+
+- `finflow.service` の `Environment=` に**クォートされていない空白**があり、
+  接続文字列が 2 変数に分割されて `UseSqlite("Data")` となり `Migrate()` で例外 →
+  .NET は Linux で未処理例外を `abort()` (SIGABRT) で終了するため
+  systemd が `fatal signal was delivered to the control process` と報告していた。
+  → `Environment=` を一律ダブルクォートで囲んだ。
+  分割後も文法上正しい代入のため**警告が一切出ず** `systemd-analyze verify` でも検出できない。
+- `deploy.sh` に `fail_with_logs()` と `systemctl reset-failed` を追加。
+
+### 完了したタスク（A/B: ラズパイ常駐化 / モバイル操作性 — PR #19, #18 でマージ済み）
+
+詳細は各 PR を参照。要点のみ:
+- systemd サービス化 + SQLite 永続化（金額は最小単位の `long` で INTEGER 列に保存）
+- `.sidebar-overlay` の `pointer-events` 修正、`[hidden]{display:none!important}` ガード
+- 未定義だった約100個の BEM クラスを補完、Playwright E2E スイートを新設
 
 ### 進行中のタスク
 
@@ -97,27 +86,41 @@
 
 ### 次にやること
 
-- **ラズパイ実機で今回の修正を検証**（最優先。作業環境が x64 コンテナのため未実施）
-  ```bash
-  git pull
-  sudo ./infra/raspi/install.sh
-  systemctl show finflow -p Environment   # 接続文字列が1つの値になっていること
-  systemctl is-enabled finflow && systemctl is-active finflow
-  curl -fsS http://localhost:5212/ >/dev/null && echo OK
-  sudo reboot   # 再起動後に自動で上がることを確認
-  ```
-- `src/frontend/js/components/ff-header.js` と `ff-sidebar.js` はどこからも import されていない**死にコード**
-  （`index.html` の静的サイドバー実装と重複）。削除を推奨
-- `src/frontend/index.html` の Chart.js CDN `<script>` の `integrity`（sha384）ハッシュが未照合。
-  ネットワークのある環境で実ファイルの sha384 を再計算して照合すること。
-  オフラインの tailnet／ラズパイ LAN 環境で使うなら Chart.js 自体をローカル同梱化するのが望ましい
-- iOS Safari 実機での確認が未実施（環境に WebKit が無く Chromium のみ）
+1. **SDK のある環境で `dotnet build` && `dotnet test` を実行する（最優先）**
+   本セッションのコンテナには .NET SDK が無く（`builds.dotnet.microsoft.com` が
+   ネットワークポリシーでブロックされ導入もできない）、**C# のビルド確認ができていない。**
+   新規追加した `tests/FinFlow.Tests/Infrastructure/StaticFileCacheHeaderTests.cs` は
+   一度も実行していない。`WebApplicationFactory` から
+   シンボリックリンク（`wwwroot` → `../frontend`）越しに静的ファイルを解決できるかに
+   依存しており、解決できない場合は 404 で落ちる。その場合はテスト側を修正する。
+2. **`npx playwright test` の実行**（`tests/e2e/login-overlay-regression.spec.js` も未実行）
+3. **ラズパイ実機での確認**
+   ```bash
+   git pull && sudo ./infra/raspi/deploy.sh
+   curl -sI http://localhost:5212/css/main.css | grep -i cache-control  # no-cache であること
+   curl -s http://localhost:5212/ | grep -o 'css/main.css?v=[0-9]*'     # ?v= が付いていること
+   ```
+4. **iPhone 実機での確認**
+   - まず**プライベートウィンドウ**で開く → 直っていれば原因はキャッシュで確定
+   - 通常ウィンドウで再読み込み → 入力できること
+   - ドロワーを開いた状態でログアウト → `/login` でメール欄をタップできること
+   - 機内モードでログイン試行 → 15 秒でエラーバナーが出て、ローディング膜が消えること
+
+### 残課題（今回スコープ外）
+
+- **Chart.js のローカル同梱** — 現在も CDN から動的ロードするため、
+  オフラインの tailnet／ラズパイ LAN 環境ではグラフが表示されず
+  リスト表示にフォールバックする。オフライン運用を前提にするなら同梱すべき。
+  なお削除した `integrity` は空文字列のハッシュ（＝無効）だったので、
+  再度付けるなら実ファイルの sha384 を計算して照合すること。
+- `src/frontend/js/components/ff-header.js` と `ff-sidebar.js` はどこからも
+  import されていない**死にコード**（`index.html` の静的サイドバー実装と重複）。削除を推奨。
+- iOS Safari 実機での自動テストは未実施（環境に WebKit が無く Chromium のみ）。
 
 ## ブロッカー・懸念事項
 
-- **ラズパイ実機未検証** — publish/起動/永続化までは x64 上で確認済みだが、
-  `install.sh` の .NET 導入部分（`dotnet-install.sh` の ARM 向け動作）と
-  systemd 実機動作はラズパイ上での確認が必要。
+- **本ブランチは C# のビルド検証ができていない**（上記「次にやること」1 を参照）。
+  フロントエンドは Chromium（モバイルエミュレーション）で 12/12 の実ブラウザ検証済み。
 - **エンティティ変更時はマイグレーションを 2 系統更新する必要がある**
   （SQL Server 用と SQLite 用）。手順は docs/DEPLOYMENT.md に記載。
 - **E2Eスイート（`tests/e2e/`）は本番環境に対して実行しないこと**。
@@ -126,31 +129,50 @@
 
 ## 重要な決定事項・メモ
 
+### フロントエンドのキャッシュ運用（今回追加）
+
+- **CSS/JS を変更したら `src/frontend/index.html` の `?v=` を必ず更新する。**
+  ビルドステップを持たない方針のため手動管理。
+  チェックリストは `.claude/rules/javascript/hooks.md` に追記済み。
+- 制約: ES モジュールの import 指定子にクエリは伝播しないため、
+  `app.js` が import する `router.js` / `utils/*.js` / `pages/*.js` には `?v=` が付かない。
+  それらはサーバー側の `Cache-Control: no-cache` に依存する。
+
+### 全画面オーバーレイの規約（今回明文化）
+
+- `position:fixed` + `inset:0` の要素は**見えていなくてもヒットテストは生きている**。
+  非表示時は必ず `pointer-events:none`、表示時のみ `auto`。
+- `document.body` 直下に付けるオーバーレイは `#page-container` のクリアでは消えないため、
+  ルート遷移時に明示的に片付ける（`loadingManager.reset()` / `closeSidebar()`）。
+
 ### ラズパイ運用
 
-- ラズパイの DB は **SQLite** に決定（2026-07-25）。SQL Server に ARM ビルドが無く、
-  InMemory では再起動でデータが消えるため。
-- ラズパイのアクセスは **LAN 内 HTTP 5212 直接**（nginx リバースプロキシは使わない）。
-- 配置方式は **publish 済みバイナリを /opt/finflow**（`dotnet run` 常駐はしない）。
-- DB ファイルは `/var/lib/finflow/finflow.db`（systemd の `StateDirectory` が管理）。
-- 機密値は `/etc/finflow/finflow.env`。`install.sh` が `Jwt__Key` を自動生成する。
-- `launchSettings.json` は `dotnet run` 専用で publish されず systemd からは読まれない。
+- DB は **SQLite**（SQL Server に ARM ビルドが無く、InMemory では再起動で消えるため）
+- アクセスは **LAN 内 HTTP 5212 直接**（nginx リバースプロキシは使わない）
+- 配置は **publish 済みバイナリを /opt/finflow**、DB は `/var/lib/finflow/finflow.db`
+- 機密値は `/etc/finflow/finflow.env`（`install.sh` が `Jwt__Key` を自動生成）
+- systemd ユニットに設定を足すときは、**値に空白が入りうるなら必ずクォートする**。
+  検証は `systemctl show <unit> -p Environment` で解釈後の値を見ること。
+- `launchSettings.json` は publish されず systemd からは読まれない。
   待ち受けアドレスは必ず `ASPNETCORE_URLS` で明示すること。
 
 ### フロントエンド／モバイル
 
-- モーダルの表示制御は `hidden` 属性 + `[hidden]{display:none!important}` グローバルガードに統一
-- 44pxタップ領域の拡大は「モバイル時（`@media (max-width:768px)`）のみ」に限定
-- ドロワー開閉中の背面スクロール抑止は `overflow:hidden`（`.body--drawer-open`）のみを採用
+- モーダルの表示制御は `hidden` 属性 + `[hidden]{display:none!important}` グローバルガード
+- 44px タップ領域の拡大は「モバイル時（`@media (max-width:768px)`）のみ」に限定
+- ドロワー開閉中の背面スクロール抑止は `overflow:hidden`（`.body--drawer-open`）のみ
   （`position:fixed` はスクロール位置が飛ぶ副作用のため不採用）
 - Playwright は WebKit 非対応環境のため全プロジェクトを Chromium ベースで構成
-- `playwright.config.js` の `workers` はローカル実行時のみ 1 に固定
 
 ## ファイル変更の状態
 
 ```
-# ブランチ: claude/raspi-app-autostart-service-3nb6ne（origin/main をマージ済み）
-# dotnet build: 成功（警告 0）
-# dotnet test : 210/210 成功
-# E2E (Playwright): 未実行（別途 npm 経由で実行）
+# ブランチ: claude/login-screen-input-issue-mc3lj5
+# dotnet build: 未実行（コンテナに .NET SDK が無い）
+# dotnet test : 未実行（同上）
+# フロントエンド: Chromium モバイルエミュレーションで 12/12 パス
+#   - ログイン画面のタップ／ヒットテスト
+#   - ドロワー展開中のログアウト後も overlay が残らない
+#   - 固着した .loading-overlay がルート遷移で除去される
+#   - Chart.js 取得失敗でもダッシュボードが操作不能にならない
 ```

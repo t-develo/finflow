@@ -8,9 +8,13 @@
  *      issue (a fixed/absolute element wider than the viewport also often
  *      breaks tap targets, since it participates in hit-testing).
  *
- * Known, environment-specific exception: `index.html` loads Chart.js from
- * a public CDN (cdn.jsdelivr.net) with a blocking <script> tag. In a
- * network-sandboxed test environment that request can fail; the app
+ * Known, environment-specific exception: `dashboard-page.js` loads Chart.js
+ * from a public CDN (cdn.jsdelivr.net) on demand, by injecting a <script>
+ * tag the first time the dashboard renders. (It used to be a blocking
+ * <script> in index.html's <head>, which froze the whole page until the
+ * request timed out on offline/LAN-only deployments -- see
+ * login-overlay-regression.spec.js for the guard against that regressing.)
+ * In a network-sandboxed test environment that request can fail; the app
  * already handles a missing `window.Chart` gracefully (see
  * dashboard-page.js's `renderCategoryListFallback`), so a *resource load*
  * failure for that specific URL is filtered out here as an infrastructure
