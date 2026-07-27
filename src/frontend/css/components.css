@@ -14,6 +14,13 @@
    .modal は hidden 属性で表示制御される（main.css 冒頭の
    `[hidden]{display:none!important}` ガードにより、hidden 属性が
    ある間はこの display:flex より確実に優先される）。
+
+   ただし「hidden 属性だけが最後の砦」という構造は、かつて
+   .sidebar-overlay がスマホの全タップを吸い込んだ不具合と同型で壊れる
+   （全画面 position:fixed + inset:0 の要素が、見えないのにヒットテスト
+   だけ生きている状態）。display の指定が一箇所でも競合すれば同じことが
+   起きるため、.sidebar-overlay / ff-toast / ff-confirm-dialog と同じ
+   規約に揃え、当たり判定は中身（backdrop と dialog）だけが持つ。
    ------------------------------------------------------------ */
 .modal {
   position: fixed;
@@ -23,17 +30,20 @@
   align-items: center;
   justify-content: center;
   padding: var(--spacing-lg);
+  pointer-events: none;
 }
 
 .modal__backdrop {
   position: absolute;
   inset: 0;
   background-color: rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
 }
 
 .modal__dialog {
   position: relative;
   z-index: 1;
+  pointer-events: auto;
   width: 100%;
   max-width: 480px;
   max-height: calc(100vh - (2 * var(--spacing-lg)));

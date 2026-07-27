@@ -139,16 +139,53 @@ function buildHtml(summary, year, month) {
 // Chart.js グラフ描画
 // ---------------------------------------------------------------------------
 
+const CHART_JS_CDN_URL = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+
+/** 読み込みを 1 回だけ行うためのメモ化した Promise。 */
+let chartJsLoadPromise = null;
+
 /**
- * Chart.js をCDN経由で動的インポートしてドーナツグラフを描画する。
+ * Chart.js を必要になった時点（＝ダッシュボード表示時）だけ読み込む。
+ *
+ * かつては index.html の <head> に同期 <script> として置かれていたが、
+ * インターネットに出られない LAN 内（ラズパイ運用）では DNS/TCP の
+ * タイムアウトまで <body> の解析自体が止まり、その間ページ全体が
+ * 操作不能になっていた。ダッシュボード以外（ログイン画面を含む）は
+ * Chart.js を必要としないため、ここで遅延読み込みする。
+ *
+ * @returns {Promise<unknown|null>} Chart コンストラクタ。失敗時は null。
+ */
+function loadChartJs() {
+  if (window.Chart) return Promise.resolve(window.Chart);
+  if (chartJsLoadPromise) return chartJsLoadPromise;
+
+  chartJsLoadPromise = new Promise((resolve) => {
+    const script = document.createElement('script');
+    script.src = CHART_JS_CDN_URL;
+    script.async = true;
+    script.crossOrigin = 'anonymous';
+    script.addEventListener('load', () => resolve(window.Chart ?? null));
+    script.addEventListener('error', () => {
+      console.warn('[Dashboard] Chart.js の読み込みに失敗しました。リスト表示にフォールバックします。');
+      // 次回のダッシュボード表示で再試行できるようメモ化を解除する
+      chartJsLoadPromise = null;
+      resolve(null);
+    });
+    document.head.appendChild(script);
+  });
+
+  return chartJsLoadPromise;
+}
+
+/**
+ * Chart.js をCDN経由で動的読み込みしてドーナツグラフを描画する。
  * @param {HTMLElement} contentArea
  * @param {Array} categories
  */
 async function renderCategoryChart(contentArea, categories) {
-  // Chart.js をグローバル変数として使用（CDN経由でindex.htmlに読み込み済み）
-  const Chart = window.Chart;
+  const Chart = await loadChartJs();
   if (!Chart) {
-    // Chart.js が読み込まれていない場合はリスト表示にフォールバック
+    // Chart.js が読み込めない場合はリスト表示にフォールバック
     renderCategoryListFallback(contentArea, categories);
     return;
   }

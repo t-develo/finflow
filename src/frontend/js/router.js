@@ -1,4 +1,5 @@
 import { auth } from './utils/auth.js';
+import { loadingManager } from './utils/api-client.js';
 
 const routes = new Map();
 // Routes containing a ":param" segment (e.g. "/expenses/:id/edit") can't be
@@ -54,6 +55,11 @@ function navigate(path) {
 }
 
 function handleRoute(path) {
+  // 画面遷移のたびに、前の画面で出しっぱなしになったローディング膜を片付ける。
+  // .loading-overlay は document.body 直下に付くため #page-container の
+  // クリアでは消えず、残ると次の画面が丸ごと操作不能になる。
+  loadingManager.reset();
+
   const sidebar = document.getElementById('sidebar');
   const mainContent = document.getElementById('main-content');
   const container = document.getElementById('page-container');
