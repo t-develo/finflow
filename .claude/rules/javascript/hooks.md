@@ -29,6 +29,8 @@ grep -rn "console\.log" src/frontend/js/ --include="*.js"
 - [ ] モックから実APIへの切り替えが適切（Sprint 2移行時）
 - [ ] JWT の不適切な露出がない
 - [ ] **CSS/JS を変更したら `src/frontend/index.html` の `?v=` を更新した**（下記参照）
+- [ ] **モジュールを跨ぐ新 API はオプショナル呼び出し（`?.`）で導入した**（下記参照）
+- [ ] `app.js` 末尾の `window.__ffBooted = true` を消していない（起動ガードの成功判定）
 - [ ] 全画面を覆う要素を追加したら `pointer-events` を規定した（下記参照）
 
 ## アセットのバージョンクエリ（`?v=`）
@@ -50,6 +52,50 @@ grep -o '?v=[0-9]*' src/frontend/index.html | sort -u
 > `app.js` が import する `router.js` / `utils/*.js` / `pages/*.js` には
 > `?v=` が付かない。それらはサーバー側の `Cache-Control: no-cache`
 > （`Program.cs`）に依存する。
+
+### 新旧モジュールの混在（実際に白画面を起こした）
+
+上の制約は「古いままになる」だけでは終わらない。**`?v=` が付く `app.js` は必ず新版、
+付かない import 先は古いまま**という**混在**が成立する。各モジュールは 1 ファイル 1 URL で
+独立したキャッシュエントリなので、まとめて新しくなる保証がない。
+
+実際に起きた事故: 後から `api-client.js` に追加した `loadingManager.reset()` を、
+端末に残っていた古い `api-client.js` が持っておらず、新しい `router.js` がそれを呼んで
+`TypeError`。しかもそれが `handleRoute()` の**最初の実行文**（`container.innerHTML` に
+触れる前）だったため、**全ルートが何も描画されないまま停止＝真っ白**になった。
+プライベートブラウザではキャッシュが空で全モジュールが整合するため正常に動き、
+「プライベートだと直る」という切り分けにくい症状になった。
+
+**規約: モジュールを跨ぐ新しい API は、最低 1 リリースの間オプショナル呼び出しで導入する。**
+
+```javascript
+// NG: 古い api-client.js と組み合わさると TypeError → 白画面
+loadingManager.reset();
+
+// OK: 最悪でも「その機能が効かない」だけで済む
+loadingManager?.reset?.();
+```
+
+これは `index.html` のインライン起動ガード（下記）とセットで機能する。
+片方だけでは守り切れない。
+
+## 起動ガード（`index.html` のインライン `<script>`）
+
+`index.html` の `<head>` 先頭に、**インラインの**起動ガードがある。
+
+- 起動失敗（例外・リソース読み込み失敗・無言のハング）を検知する
+- 1 回だけ `fetch(url, { cache: 'reload' })` でキャッシュを破棄して自己修復する
+  （`cache: 'reload'` は URL を変えずに焼き付いたエントリを置換できる唯一の手段）
+- それでも駄目なら、白画面ではなく**原因の見えるエラー画面**と復旧ボタンを出す
+
+**必ずインラインのまま維持すること。** 外部 `.js` に切り出すと、それ自体がキャッシュ
+事故の対象になり、肝心なときに動かない。`index.html` はサーバーの `no-cache` で
+毎回再検証されるため、ここだけは確実に最新版が動く。
+
+`app.js` は末尾で `window.__ffBooted = true` を立てる。これがガードの成功判定なので、
+**`app.js` の末尾からこの行を消さないこと**。
+
+回帰テスト: `tests/e2e/boot-guard-regression.spec.js`
 
 ## 全画面オーバーレイの規約
 
