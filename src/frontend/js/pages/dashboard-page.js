@@ -87,15 +87,20 @@ function buildHtml(summary, year, month) {
     ? 'dashboard-card__change--increase'
     : 'dashboard-card__change--decrease';
 
+  // 先月の実績が 0 のときに「前月比 +0.0%」と出すと、
+  // 「先月と同じだった」という誤った意味に読める（実際は比較対象が無い）。
+  const hasComparison = Number(summary.previousMonthTotal) > 0;
+  const changeHtml = hasComparison
+    ? `<div class="dashboard-card__change ${changeClass}">前月比 ${changeSign}${changeValue}%</div>`
+    : `<div class="dashboard-card__change dashboard-card__change--none">前月のデータがありません</div>`;
+
   return `
     <div class="dashboard-grid">
       <!-- Summary cards -->
       <div class="card dashboard-card">
         <div class="dashboard-card__label">今月の支出</div>
         <div class="dashboard-card__value">${formatCurrency(summary.currentMonthTotal)}</div>
-        <div class="dashboard-card__change ${changeClass}">
-          前月比 ${changeSign}${changeValue}%
-        </div>
+        ${changeHtml}
       </div>
 
       <div class="card dashboard-card">
@@ -141,6 +146,13 @@ function buildHtml(summary, year, month) {
 
 const CHART_JS_CDN_URL = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
 
+/**
+ * Chart.js の取得を諦めるまでの時間（ミリ秒）。
+ * オフラインの LAN ではリクエストが黙って捨てられ、error イベントすら
+ * 飛ばないことがあるため、時間で打ち切ってフォールバックに進む。
+ */
+const CHART_JS_TIMEOUT_MS = 5_000;
+
 /** 読み込みを 1 回だけ行うためのメモ化した Promise。 */
 let chartJsLoadPromise = null;
 
@@ -164,12 +176,36 @@ function loadChartJs() {
     script.src = CHART_JS_CDN_URL;
     script.async = true;
     script.crossOrigin = 'anonymous';
-    script.addEventListener('load', () => resolve(window.Chart ?? null));
+
+    // 一度だけ決着させる。error とタイムアウトが二重に発火しても
+    // メモ化の解除を 2 回走らせない。
+    let settled = false;
+    const settle = (value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      if (value === null) {
+        // 次回のダッシュボード表示で再試行できるようメモ化を解除する
+        chartJsLoadPromise = null;
+      }
+      resolve(value);
+    };
+
+    // タイムアウトが必要な理由:
+    // error イベントは「接続を拒否された」ときには飛ぶが、
+    // ラズパイの LAN のように**パケットが黙って捨てられる**環境では
+    // 何のイベントも起きないまま await が永久に解決しない。
+    // その場合フォールバックのリスト表示にも到達できず、
+    // カテゴリ別内訳が**空の箱のまま**になる（実際にそうなっていた）。
+    const timeoutId = setTimeout(() => {
+      console.warn('[Dashboard] Chart.js の読み込みがタイムアウトしました。リスト表示にフォールバックします。');
+      settle(null);
+    }, CHART_JS_TIMEOUT_MS);
+
+    script.addEventListener('load', () => settle(window.Chart ?? null));
     script.addEventListener('error', () => {
       console.warn('[Dashboard] Chart.js の読み込みに失敗しました。リスト表示にフォールバックします。');
-      // 次回のダッシュボード表示で再試行できるようメモ化を解除する
-      chartJsLoadPromise = null;
-      resolve(null);
+      settle(null);
     });
     document.head.appendChild(script);
   });
@@ -296,10 +332,13 @@ function buildRecentExpensesTable(expenses) {
         style="cursor: pointer;"
         tabindex="0"
         aria-label="${escapeHtml(expense.description ?? '')} ${formatCurrency(expense.amount)}">
-      <td class="table__cell table__cell--muted">${escapeHtml(formatDate(expense.date))}</td>
-      <td class="table__cell">${escapeHtml(expense.categoryName ?? '不明')}</td>
-      <td class="table__cell">${escapeHtml(expense.description ?? '')}</td>
-      <td class="table__cell table__cell--amount">${escapeHtml(formatCurrency(expense.amount))}</td>
+      <!-- data-label はモバイルのカード表示で見出しになる
+           （main.css の .table__cell[data-label]::before）。
+           これが無いと、値だけが縦に並んで何の数字か読めない。 -->
+      <td class="table__cell table__cell--muted" data-label="日付">${escapeHtml(formatDate(expense.date))}</td>
+      <td class="table__cell" data-label="カテゴリ">${escapeHtml(expense.categoryName ?? '不明')}</td>
+      <td class="table__cell" data-label="説明">${escapeHtml(expense.description ?? '')}</td>
+      <td class="table__cell table__cell--amount" data-label="金額">${escapeHtml(formatCurrency(expense.amount))}</td>
     </tr>
   `).join('');
 

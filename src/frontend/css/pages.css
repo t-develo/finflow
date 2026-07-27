@@ -134,6 +134,29 @@
   color: var(--color-success);
 }
 
+/* 比較対象が無いとき。増減ではないので警戒色も良化色も使わない。 */
+.dashboard-card__change--none {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+/* モバイル: 1 画面に収まる情報量を増やす。
+   カードの余白（.card の 24px）はスマホでは冗長で、
+   スクロールしないと「最近の支出」に到達できなかった。 */
+@media (max-width: 768px) {
+  .dashboard-grid {
+    gap: var(--spacing-sm);
+  }
+
+  .dashboard-grid .card {
+    padding: var(--spacing-md);
+  }
+
+  .dashboard-card__value {
+    font-size: var(--font-size-2xl);
+  }
+}
+
 .dashboard-card__footer {
   margin-top: var(--spacing-sm);
 }
@@ -274,12 +297,33 @@
      子孫でもないため、既存のモバイル用タッチターゲット規則
      （main.css:600付近）が一切当たっていなかった。 */
   .filter-bar__select {
-    min-height: 44px;
-    font-size: 1rem;
+    min-height: var(--tap-target);
+    font-size: var(--font-size-lg);
+    /* 選択欄は残り幅いっぱいに広げる。ラベル分だけ右に余白が空いて
+       中途半端な幅になっていた。 */
+    flex: 1;
+    min-width: 0;
   }
 
   .filter-bar__item {
     width: 100%;
+  }
+
+  /* 2 つのフィルタを詰める。既定の gap(24px)＋margin-bottom(24px) は
+     縦積みになるモバイルでは間延びして、一覧が画面外へ押し出される。 */
+  .filter-bar {
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+  }
+
+  .filter-bar__label {
+    /* ラベル幅を揃えて、選択欄の左端を縦に並べる。 */
+    min-width: 5em;
+  }
+
+  /* FAB と最後のカードが重ならないように余白を確保する。 */
+  .exp-list {
+    padding-bottom: calc(72px + var(--safe-bottom));
   }
 }
 
@@ -417,6 +461,17 @@
   .csv-import .btn--sm {
     min-width: 44px;
   }
+
+  /* 主要な実行ボタンは全幅にする。右下に小さく置かれていると、
+     片手持ちの親指では届きにくく、押し損ねやすい。 */
+  .csv-import__actions {
+    display: flex;
+  }
+
+  .csv-import__actions .btn:not(.btn--sm) {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 .alert--warning {
@@ -429,25 +484,49 @@
    サブスクリプション（/subscriptions）
    ------------------------------------------------------------ */
 .subscription-summary {
-  margin-bottom: var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
 }
 
+/* 月額合計は「今いくら払っているか」という、この画面で最も知りたい数字。
+   カードの中で一番大きく、色でも際立たせる。 */
 .subscription-summary__card {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs);
-  max-width: 320px;
+  gap: 2px;
+  max-width: 360px;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--border-radius-lg);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+  color: #ffffff;
+  box-shadow: var(--shadow-md);
 }
 
 .subscription-summary__label {
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
+  font-size: var(--font-size-base);
+  opacity: 0.9;
 }
 
 .subscription-summary__value {
-  font-size: 1.5rem;
+  font-size: var(--font-size-3xl);
   font-weight: 700;
-  color: var(--color-text);
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.subscription-summary__sub {
+  font-size: var(--font-size-xs);
+  opacity: 0.85;
+}
+
+@media (max-width: 768px) {
+  .subscription-summary__card {
+    max-width: none;
+  }
+
+  /* FAB と最後のカードが重ならないように、リストの下に余白を確保する。 */
+  .sub-list {
+    padding-bottom: calc(72px + var(--safe-bottom));
+  }
 }
 
 /* ------------------------------------------------------------
@@ -500,6 +579,13 @@
 
   .category-form__fields .form__group {
     flex: 1 1 auto;
+  }
+
+  /* 「追加」も全幅に。縦積みのフォームの末尾に小さなボタンが
+     ぽつんと残ると、押せる場所が分かりにくい。 */
+  .category-form__actions .btn {
+    width: 100%;
+    justify-content: center;
   }
 }
 

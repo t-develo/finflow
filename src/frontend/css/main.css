@@ -35,6 +35,46 @@
   --border-radius: 8px;
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
   --shadow-md: 0 4px 6px rgba(0,0,0,0.1);
+
+  /* ============================================================
+     追加トークン
+     ------------------------------------------------------------
+     ff-confirm-dialog.js / ff-toast.js は Shadow DOM 内で
+     var(--font-family, ...) や var(--border-radius-lg, ...) を
+     参照しているが、これらは**どこにも定義されていなかった**ため
+     常にフォールバック値で描画されていた（＝トークンを変えても
+     コンポーネントに反映されない状態）。CSS カスタムプロパティは
+     Shadow 境界を越えて継承されるので、ここで定義すれば届く。
+     ============================================================ */
+  --color-text-secondary: #4B5563;
+  --color-primary-soft: rgba(59, 130, 246, 0.1);
+  --color-danger-soft: rgba(239, 68, 68, 0.1);
+
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans',
+                 'Noto Sans JP', sans-serif;
+
+  /* タイポグラフィ。従来は 10 種類の生 rem がファイル間に散っていた。 */
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.8125rem;
+  --font-size-base: 0.875rem;
+  --font-size-md: 0.9375rem;
+  --font-size-lg: 1rem;
+  --font-size-xl: 1.125rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.75rem;
+
+  --border-radius-sm: 6px;
+  --border-radius-lg: 16px;
+  --border-radius-pill: 9999px;
+  --shadow-lg: 0 12px 28px rgba(17, 24, 39, 0.16);
+
+  /* タップ領域の下限。44px は WCAG/HIG の最低線なので、既定はもう少し余裕を持たせる。 */
+  --tap-target: 48px;
+
+  /* iPhone のホームインジケータ／ノッチ。下端固定の要素は必ずこれを足す。
+     env() 非対応ブラウザでは 0px にフォールバックする。 */
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
 }
 
 * {
@@ -61,10 +101,85 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-family);
   background-color: var(--color-bg);
   color: var(--color-text);
   line-height: 1.5;
+  /* iOS で入力欄フォーカス時にページ全体がズームされるのを防ぐ
+     （16px 未満の入力欄があるとズームが起きる。個別指定は各所で行うが、
+     テキストサイズの勝手な拡大も止めておく）。 */
+  -webkit-text-size-adjust: 100%;
+}
+
+/* ============================================================
+   タップの手応え（モバイル最優先）
+   ------------------------------------------------------------
+   これまで :active / touch-action / -webkit-tap-highlight-color は
+   リポジトリ内に 1 つも無く、押下時のフィードバックが皆無だった。
+   マウスと違いタッチには :hover が無いので、「押したのに何も
+   起きない」＝壊れている、という体感になる（特に確認ダイアログを
+   挟む削除操作で目立つ）。
+
+   - touch-action: manipulation … ダブルタップズームの判定待ちを外す
+   - tap-highlight-color        … OS 既定の青い矩形を消し、下の :active に委ねる
+   - user-select / touch-callout … 🗑️ 等の絵文字ラベルを長押ししたときに
+                                    テキスト選択やコンテキストメニューが
+                                    出てタップが「滑る」のを防ぐ
+   ============================================================ */
+button,
+.btn,
+[role="button"],
+a.btn {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.btn:active:not(:disabled),
+.table__action-btn:active:not(:disabled),
+.pagination__btn:active:not(:disabled),
+.modal__close:active,
+.fab:active {
+  transform: scale(0.97);
+  filter: brightness(0.96);
+}
+
+.btn:disabled,
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* キーボード操作時だけフォーカスリングを出す（タップでは出さない）。 */
+.btn:focus-visible,
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .btn:active:not(:disabled),
+  .table__action-btn:active:not(:disabled),
+  .pagination__btn:active:not(:disabled),
+  .modal__close:active,
+  .fab:active {
+    transform: none;
+  }
 }
 
 /* Layout */
@@ -135,6 +250,10 @@ body {
 
 .sidebar__logout {
   width: 100%;
+  /* ドロワー内にあるためモバイルでも指で押す。実測 36px だったので
+     最小タップ領域まで引き上げる（既存の tap-target 検査は Shadow DOM を
+     貫通しないヘルパーで走っており、ここも取りこぼしていた）。 */
+  min-height: var(--tap-target);
   padding: var(--spacing-sm);
   background: none;
   border: 1px solid var(--color-border);
@@ -176,13 +295,19 @@ body {
 .btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--spacing-xs);
   padding: var(--spacing-sm) var(--spacing-md);
   border-radius: var(--border-radius);
   border: none;
   cursor: pointer;
+  font-family: inherit;
   font-size: 0.875rem;
   font-weight: 500;
+  /* <a class="btn"> はリンクなので既定で下線が付く。ボタンに見せる以上、
+     下線と既定のリンク色は打ち消す（「+ 支出を追加」が下線付きで
+     表示されていた）。 */
+  text-decoration: none;
   transition: all 0.2s;
 }
 
@@ -419,6 +544,15 @@ body {
   width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+/* 行内の操作ボタン（✏️ / 🗑️）。gap の指定がモバイルにしか無く、
+   デスクトップでは 44px の当たり判定同士が隙間なく密着していたため、
+   隣のボタンを誤って押しやすかった。全幅で間隔を保証する。 */
+.table__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
 }
 
 /* ============================================================
@@ -722,22 +856,31 @@ body {
     grid-template-columns: 1fr !important;
   }
 
-  /* Modal: full screen on mobile */
-  .modal__dialog {
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 0 !important;
-    border-radius: 0 !important;
-    min-height: 100vh;
-    /* iOS Safari のツールバー変動に対応（動的ビューポート高さ） */
-    min-height: 100dvh;
-    max-height: 100vh;
-    max-height: 100dvh;
-  }
+  /* ============================================================
+     モーダルのモバイル表示（ボトムシート）について
+     ------------------------------------------------------------
+     **ここには書かない。** .modal / .modal__dialog / .modal__footer の
+     ベース定義は components.css にあり、そちらは main.css より**後に**
+     読み込まれる。同じ詳細度(0,0,1,0)なら後勝ちなので、ここに書いた
+     オーバーライドは components.css のベース宣言に負ける
+     （実際、.fab の display と .modal__footer の padding/align-items で
+     これを踏んだ）。
+     モーダル関連のモバイル指定は components.css の
+     `@media (max-width: 768px)` に一本化してある。
+
+     以前ここにあった全画面化(min-height:100dvh)も同様の理由で
+     components.css へ移した。
+     ============================================================ */
 
   /* Filter bar: wrap */
   .filter-bar {
     flex-wrap: wrap;
+  }
+
+  .page-header__action {
+    /* モバイルでは FAB（components.css）が同じ役割を担うので、
+       ヘッダー側の追加ボタンは隠す（同じ操作を 2 つ並べない）。 */
+    display: none;
   }
 }
 

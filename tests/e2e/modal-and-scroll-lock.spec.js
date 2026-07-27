@@ -47,6 +47,7 @@
 'use strict';
 
 const { test, expect } = require('@playwright/test');
+const { subscriptionAddButton } = require('./helpers/subscriptions');
 const { registerAndLoginViaUi } = require('./helpers/auth');
 const { findHitTestFailures, formatHitTestFailures } = require('./helpers/hit-test');
 
@@ -65,7 +66,7 @@ test('サブスクモーダル: 画面高が低くてもフッターの操作ボ
   await page.goto('/subscriptions');
   await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
 
-  await page.locator('#add-subscription-btn').tap();
+  await subscriptionAddButton(page).tap();
   const modal = page.locator('#subscription-modal');
   await modal.waitFor({ state: 'visible' });
 

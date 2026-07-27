@@ -110,9 +110,21 @@ class FfToast extends HTMLElement {
   _render() {
     this.shadowRoot.innerHTML = `
       <style>
+        /* ---------------------------------------------------------------
+           配置について
+           ---------------------------------------------------------------
+           以前は top:80px / right:24px だった。これは存在しない <ff-header>
+           （import されていないデッドコード）の高さを前提にした値で、実際の
+           レイアウトではコンテンツの上端に重なる。しかも .toast は
+           pointer-events:all なので、**表示中の 3 秒間そこのタップを吸う**。
+           トーストを出すのは削除の成功時だけなので、「削除したあとだけ
+           反応しない」という症状に直結していた。
+           デスクトップは右上のままにしつつ、画面が狭いモバイルでは
+           操作対象と重なりにくい**下部**に出す。
+           --------------------------------------------------------------- */
         :host {
           position: fixed;
-          top: 80px;
+          top: 16px;
           right: 24px;
           z-index: 600;
           display: flex;
@@ -135,10 +147,15 @@ class FfToast extends HTMLElement {
           border-radius: 8px;
           box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
           font-size: 0.875rem;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          font-family: var(--font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
           max-width: 360px;
           min-width: 240px;
-          pointer-events: all;
+          /* 本体はタップを透過させる。修正前は pointer-events:all で、
+             表示中の 3 秒間、重なった位置のタップを丸ごと吸っていた。
+             トーストが出るのは保存・削除の直後なので、「削除したあとだけ
+             反応しない」という体感に直結していた。
+             閉じるボタンだけ当たり判定を戻す（下の .toast__close）。 */
+          pointer-events: none;
           opacity: 0;
           transform: translateX(100%);
           transition: opacity 250ms ease, transform 250ms ease;
@@ -190,6 +207,15 @@ class FfToast extends HTMLElement {
         }
 
         .toast__close {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          /* 修正前は padding:0 で実測 14px 四方しかなく、事実上押せなかった。 */
+          min-width: 44px;
+          min-height: 44px;
+          margin: -12px -8px -12px 0;
+          /* 本体は pointer-events:none なので、ここだけ当たり判定を戻す。 */
+          pointer-events: auto;
           background: none;
           border: none;
           cursor: pointer;
@@ -199,11 +225,51 @@ class FfToast extends HTMLElement {
           line-height: 1;
           opacity: 0.6;
           flex-shrink: 0;
+          touch-action: manipulation;
+          -webkit-tap-highlight-color: transparent;
           transition: opacity 150ms ease;
         }
 
         .toast__close:hover {
           opacity: 1;
+        }
+
+        /* モバイル: 上部から全幅で降りてくるバナー。
+           下部は FAB（右下）とボトムシートのフッター（保存/キャンセル）が
+           占めており、そこへ出すと最も押したいボタンの真上に重なる。
+           上部なら重なるのはハンバーガーだけで、しかも本体は
+           pointer-events:none なのでタップは透過する。 */
+        @media (max-width: 768px) {
+          :host {
+            top: calc(8px + var(--safe-top, 0px));
+            right: 12px;
+            left: 12px;
+          }
+
+          .toast {
+            max-width: none;
+            min-width: 0;
+            transform: translateY(-120%);
+          }
+
+          .toast--visible {
+            transform: translateY(0);
+          }
+
+          .toast--hidden {
+            transform: translateY(-120%);
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .toast {
+            transition: opacity 150ms ease;
+            transform: none;
+          }
+          .toast--visible,
+          .toast--hidden {
+            transform: none;
+          }
         }
       </style>
       <div class="toast-container" aria-label="通知エリア"></div>

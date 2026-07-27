@@ -101,7 +101,7 @@ public class SubscriptionsController : ControllerBase
             BillingCycle = request.BillingCycle,
             NextBillingDate = request.NextBillingDate,
             IsActive = request.IsActive,
-            Notes = request.Description
+            Notes = request.Notes
         };
 
     private static SubscriptionResponse MapToResponse(Subscription s) =>
@@ -120,6 +120,13 @@ public class SubscriptionsController : ControllerBase
         );
 }
 
+// NOTE: メモ欄のプロパティ名は `Notes`。以前は `Description` だったため、
+// フロントエンドが送る `notes` がバインドされず、**メモが常に null で
+// 保存されていた**（レスポンス側も `description` で返っていたため、
+// 編集時にメモ欄が常に空になる）。docs/openapi.yaml の
+// CreateSubscriptionRequest / Subscription はいずれも `notes` と定義しており、
+// 仕様に対して実装がずれていた。名前を変えるときは
+// openapi.yaml とフロントエンドの両方と揃っているか確認すること。
 public record SubscriptionRequest(
     [Required, StringLength(100, MinimumLength = 1)] string ServiceName,
     [Range(0.01, double.MaxValue, ErrorMessage = "Amount must be a positive number.")] decimal Amount,
@@ -127,7 +134,7 @@ public record SubscriptionRequest(
     [Required, RegularExpression("^(monthly|yearly|weekly)$",
         ErrorMessage = "BillingCycle must be 'monthly', 'yearly', or 'weekly'.")] string BillingCycle,
     DateOnly NextBillingDate,
-    string? Description,
+    [StringLength(500)] string? Notes,
     bool IsActive = true
 );
 
@@ -139,7 +146,7 @@ public record SubscriptionResponse(
     string? CategoryName,
     string BillingCycle,
     DateOnly NextBillingDate,
-    string? Description,
+    string? Notes,
     bool IsActive,
     DateTime CreatedAt,
     DateTime UpdatedAt

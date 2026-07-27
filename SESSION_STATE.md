@@ -6,121 +6,105 @@
 ## 最終更新
 
 - **日時:** 2026-07-27
-- **担当者/エージェント:** Claude Code（iPhone で真っ白画面になる問題の修正）
+- **担当者/エージェント:** Claude Code（サブスク二重登録 / 削除UI / スマホデザイン最適化）
 
 ## 現在のスプリント・マイルストーン
 
 - **スプリント:** Sprint 3 相当（機能は一通り実装済み、品質・回帰テスト・運用整備フェーズ）
 - **フォーカス:** ラズパイ常駐運用中に実機で見つかった不具合の修正
-- **ブランチ:** `claude/iphone-white-screen-issue-mqf4xp`（`main` = `ef91c38` から分岐）
+- **ブランチ:** `claude/subscription-duplicate-delete-ui-g2s2sh`（`main` = `d114576` から分岐）
 
 ## 直前の作業内容
 
-### 完了したタスク（E: iPhone で真っ白画面 — 本ブランチ）
+### 完了したタスク（F: サブスク二重登録 / 削除UI / スマホデザイン — 本ブランチ）
 
-**前回の修正（PR #21）が原因で発生した二次不具合。** 症状が
-「表示はされるがタップ不可」→「真っ白」に変わり、リロードも `?v=` も効かず、
-**プライベートブラウザでは正常**という報告。
+実機で報告された 2 件、**「サブスクが二重・三重に登録される」と
+「削除ボタンだけ反応が鈍い」は同じ根っこ**だった。
 
-- **原因（Chromium で再現・実証済み）: 新旧モジュールの混在**
-  `index.html` の `?v=` は `<script src>` / `<link href>` にしか効かず、
-  `app.js` が `import` する `router.js` / `utils/*.js` には**伝播しない**。
-  各モジュールは 1 ファイル 1 URL で独立したキャッシュエントリなので、
-  **「?v= が付く app.js は必ず新版 / 付かない import 先は古いまま」**という混在が成立する。
-  そして PR #21 で `api-client.js` に追加した `loadingManager.reset()` を、
-  端末に残っていた古い `api-client.js` が持っておらず `TypeError`。
-  これが `handleRoute()` の**最初の実行文**（`container.innerHTML` に触れる前）だったため、
-  **全ルートが何も描画されず真っ白**になっていた。
-  `window.onerror` が無かったため実機に手掛かりが一切残らなかったのが切り分けを困難にした。
-  なお `Cache-Control: no-cache` も PR #21 で入ったが、ヘッダは「これから取得する応答」に
-  しか付かないため、**修正を届ける手段自体がその修正で初めて有効になる**鶏と卵だった。
+#### 原因1: 再描画されない要素へのリスナー累積（二重登録の正体）
 
-- **対策 1（中核）: `index.html` にインラインの起動ガードを追加**
-  起動失敗（例外・リソース読み込み失敗・無言のハング）を検知し、
-  `fetch(url, { cache: 'reload' })` で**1 回だけ**自己修復（URL を変えずに焼き付いた
-  エントリを置換できる唯一の手段）。それでも駄目なら白画面ではなく
-  **原因テキスト＋「キャッシュを消して再読み込み」ボタン**を出す。
-  破棄対象 URL は DOM と `performance.getEntriesByType('resource')` から動的収集し、
-  一覧をハードコードしない。`sessionStorage` でループ防止。
-  **必ずインラインのまま維持すること**（外部 .js にすると、それ自体がキャッシュ事故の対象になる）。
+`loadAndRender()` が呼ばれるたびに `attachEventListeners()` を呼び直していたが、
+リスナーの貼り先（`#modal-save-btn` 等）は `buildShell()` が 1 度だけ作る
+**永続要素**なので、古いリスナーが解除されずに積み上がる。
+しかも増えたリスナーがそれぞれ `loadAndRender()` を呼ぶため、
+リスナー数は **1 → 2 → 4 → 8 と指数的に増殖**し、POST 回数がそのまま登録件数になった。
 
-- **対策 2（再発防止）: モジュールを跨ぐ新 API はオプショナル呼び出し**
-  `router.js` を `loadingManager?.reset?.()` に。旧 `api-client.js` と混ざっても
-  白画面にならず、最悪でも前回の挙動に留まる。規約として `.claude/rules/javascript/hooks.md` に明文化。
+| 操作 | 発火前リスナー数 | POST 回数 |
+|---|---|---|
+| 1 件目の保存 | 1 | 1（正常） |
+| 2 件目の保存 | 2 | **2（二重）** |
+| 3 件目の保存 | 4 | **4（四重）** |
 
-- **`app.js` 末尾で `window.__ffBooted = true`** — 起動ガードの成功判定。消さないこと。
+> **`btn.disabled = true` では防げない。** 1 回のクリックのディスパッチは、
+> 途中で `disabled` にしても**その要素に登録済みの全リスナーを最後まで呼ぶ**。
+> 人間の二重タップには効くが、多重リスナーには無力。
 
-- **回帰テスト新設** `tests/e2e/boot-guard-regression.spec.js`（6/6 パス、両モバイルプロファイル）。
-  `page.route()` で「`reset()` 追加前の api-client.js」を再現する。git SHA を固定せず
-  実物から当該メソッドを `delete` するため、履歴の書き換えに強い。
+対策: `attachShellListeners()` を描画時に **1 回だけ**呼ぶ構造へ。一覧は
+`#subscription-content` への**イベント委譲**（委譲元が永続なのでリスナーは 1 本）。
+保険として `state.busy` の多重送信ガード。`expense-list-page.js` の同型バグも修正。
 
-> **教訓:** ビルドステップの無い ES モジュール構成では、キャッシュは
-> **ファイル単位でバラバラに古くなる**。「全部まとめて新しくなる」前提のコードは壊れる。
-> そして**起動時の例外は無言の白画面になる**ため、`window.onerror` 相当の受け皿は必須。
+#### 原因2: `innerHTML` による退避・復元がリスナーを殺していた（削除の正体）
 
-### 完了したタスク（D: iPhone でログイン画面が操作できない — PR #21 でマージ済み）
+`showDeleteConfirm()` が `.modal__footer` の innerHTML を文字列で退避し、
+文字列から復元していた。**復元後の要素はリスナーを 1 本も持たない別物**になるため、
+「削除 → キャンセル」を一度でも操作すると、以後そのモーダルの保存も削除も
+完全に無反応になっていた。→ 共通の `ff-confirm-dialog` に統一（カテゴリ画面も同様）。
 
-systemd 常駐は成功しているが、**iPhone / iOS Safari で `/login` を開くと
-「見た目は正常なのにタップが一切効かない」**という報告。
-PR #18 (`3eddd1f`) の `.sidebar-overlay` の `pointer-events` 修正は HEAD に入っており、
-**ソース上 `/login` を静的に覆う要素は存在しない**ことを確認したうえで、
-「修正が端末に届いていない経路」と「修正が塞ぎ切れていない経路」の両方を潰した。
+#### 原因3: `ff-toast` が削除直後に画面を覆っていた
 
-- **本命: 静的ファイルにキャッシュ制御が無かった**
-  `app.UseStaticFiles()` を素で呼ぶと ETag / Last-Modified は付くが `Cache-Control` が付かない。
-  この場合ブラウザはヒューリスティックキャッシュに落ち、**再検証せずに修正前の CSS を
-  使い続ける**（iOS Safari で特に顕著）。「見た目は普通だがタップが効かない」＝
-  修正前の透明シャッターがそのまま生きている状態と完全に一致する。
-  → `Program.cs` で `Cache-Control: no-cache, must-revalidate` を全静的ファイルに付与。
-  **`MapFallbackToFile` は内部で独立した StaticFileMiddleware を実行する**ため、
-  同じ `StaticFileOptions` を渡さないと index.html にだけヘッダーが付かない点に注意。
-  → あわせて `index.html` の CSS/JS 参照に `?v=20260727` を付与。
-  サーバー側ヘッダーは「これから取得するもの」しか直せないが、
-  URL を変えるこの方法は**すでに端末に焼き付いたキャッシュ**にも即座に効く。
+`.toast` が `pointer-events:all` の固定要素で、表示中の 3 秒間そこのタップを吸う。
+**トーストが出るのは保存・削除の成功時だけ**なので「削除したあとだけ反応しない」に直結。
+`top:80px` は import されていない `ff-header` を前提にした値だった。
+→ `pointer-events:none`（閉じるボタンだけ `auto`）、モバイルは上部バナー化。
 
-- **`.loading-overlay` の固着** — `position:fixed; inset:0; z-index:500` の全画面要素を
-  `api-client.js` が `document.body` 直下に付け、除去は `finally` の `hide()` のみ。
-  **fetch にタイムアウトが無かった**ため、LAN 断や Pi のハングで Promise が解決しないと
-  overlay が永久に残り、画面全体が操作不能になる。`#page-container` の外なのでルート遷移でも消えない。
-  → `AbortController` によるタイムアウト（通常 15 秒 / アップロード 120 秒）、
-  `loadingManager.reset()` の追加、ルート遷移時と 401 リダイレクト時の掃除を実装。
+#### 原因4: Shadow DOM にグローバル CSS が届いていなかった
 
-- **ドロワー状態がルート遷移でリセットされなかった** — ドロワーは
-  「サイドバー内の `[data-navigo]` クリック」でしか閉じていなかったため、
-  ログアウトボタン（`#logout-btn` は `[data-navigo]` ではない）・401 リダイレクト・
-  `popstate` のいずれかで `/login` に来ると `.sidebar-overlay--visible`
-  （`pointer-events:auto` の全画面要素）が残り、遷移先の全タップを吸い込んでいた。
-  → `router.onRouteChange` で必ず `closeSidebar()` を呼ぶようにした。
+`ff-confirm-dialog` の「削除する／キャンセル」は実測 34px、`ff-toast` の
+閉じるボタンは 14px 四方。`main.css` のモバイル 44px 規約は Shadow 境界を越えない。
+既存の `tap-target-size.spec.js` も `document.querySelectorAll` で貫通しないため
+**一度も検査されていなかった**。→ Shadow 内に自前のメディアクエリ、検査ヘルパーも新設。
 
-- **Chart.js の同期 CDN `<script>` を削除** — `integrity` が**空文字列の SHA-384**
-  （プレースホルダ）で永久にロードされないうえ、`defer`/`async` 無しだったため、
-  ネットに出られない LAN 内 Pi では DNS/TCP タイムアウトまで `<body>` の解析が止まり、
-  その間ページ全体がタップに反応しない。ダッシュボード表示時に動的ロードする方式に変更。
-  既存の `renderCategoryListFallback` がそのままフォールバックとして機能する。
+#### 原因5: 押下フィードバックがリポジトリ全体で 0 件
 
-- **`.modal` にも `pointer-events` 規律を横展開** — `hidden` 属性だけが最後の砦という
-  構造は、旧 `.sidebar-overlay` と同型で壊れるため。
+`:active` / `touch-action` / `-webkit-tap-highlight-color` が 1 つも無く、
+タッチには `:hover` が無いため「押しても何も起きない」体感になっていた。
 
-> **教訓:** 「修正したのに実機で直らない」ときは、コードを疑う前に
-> **プライベートウィンドウで開いて切り分ける**こと。
-> ビルドステップの無いフロントエンドでは、キャッシュ破棄は自動化されない。
+#### あわせて直した既存バグ
 
-### 完了したタスク（C: ラズパイ実機の起動失敗 — PR #20 でマージ済み）
+- **`notes` が常に null で保存されていた** — フロントは `notes` を送るのに
+  Controller の DTO は `Description`。`docs/openapi.yaml` の仕様（`notes`）とも不一致。
+- **サーバー側に重複防御が無かった** — `SubscriptionService` に
+  `EnsureServiceNameIsUniqueAsync()` を追加（409）。タイムアウト後の再送経路は
+  これでしか塞げない（abort されるのはクライアント側の待ち受けだけで、
+  サーバーの INSERT は完了していることがある）。
+- **`.form__input` / `.form__select` / `.form__textarea` にベーススタイルが皆無**
+  だった（iPhone で入力欄が本文幅の 6 割しかなかった原因）。
+- **Chart.js のフォールバックに到達できなかった** — オフライン LAN では
+  パケットが黙って捨てられて `error` イベントすら飛ばず、`await` が永久に解決しない。
+  タイムアウト(5 秒)を追加。
+- カテゴリ削除の失敗が `catch` で握り潰されて無言だった → toast 表示。
+- `#logout-btn` が実測 36px。`a.btn` に下線が付いていた。
+- 先月実績 0 のとき「前月比 +0.0%」（＝先月と同じ、という誤読）→「前月のデータがありません」。
 
-- `finflow.service` の `Environment=` に**クォートされていない空白**があり、
-  接続文字列が 2 変数に分割されて `UseSqlite("Data")` となり `Migrate()` で例外 →
-  .NET は Linux で未処理例外を `abort()` (SIGABRT) で終了するため
-  systemd が `fatal signal was delivered to the control process` と報告していた。
-  → `Environment=` を一律ダブルクォートで囲んだ。
-  分割後も文法上正しい代入のため**警告が一切出ず** `systemd-analyze verify` でも検出できない。
-- `deploy.sh` に `fail_with_logs()` と `systemctl reset-failed` を追加。
+#### スマホ向けデザイン（主要 5 画面）
 
-### 完了したタスク（A/B: ラズパイ常駐化 / モバイル操作性 — PR #19, #18 でマージ済み）
+- デザイントークン整備（`--font-family` / `--border-radius-lg` /
+  `--color-text-secondary` は**参照されていたのに未定義**だった）、
+  タイポスケール、`--tap-target: 48px`、`--safe-bottom`（ノッチ対応）
+- サブスク: テーブル → `.sub-card`。**一覧行から直接削除**できるように
+- 支出一覧: `.exp-card`。**1 画面 2 件 → 7 件**
+- モーダル → ボトムシート（つまみ・sticky フッター・safe-area）
+- FAB（サブスク／支出）、ダッシュボードの余白圧縮、フィルタバー整理
 
-詳細は各 PR を参照。要点のみ:
-- systemd サービス化 + SQLite 永続化（金額は最小単位の `long` で INTEGER 列に保存）
-- `.sidebar-overlay` の `pointer-events` 修正、`[hidden]{display:none!important}` ガード
-- 未定義だった約100個の BEM クラスを補完、Playwright E2E スイートを新設
+> **CSS カスケードの罠を踏んだ:** `.fab` と `.modal__footer` のモバイル指定を
+> `main.css` に書いたが、ベース定義のある `components.css` が**後に読み込まれる**ため
+> 後勝ちで負けた。**モバイル用オーバーライドは、ベース定義と同じファイルに置くこと。**
+
+#### 検証インフラ（.NET SDK 無しでフロントを回す）
+
+`tests/e2e/mock-server/server.js` が `src/frontend` を静的配信しつつ `/api/*` を
+インメモリ応答する。`npm run test:e2e:mock`（`playwright.mock.config.js`）。
+ユーザー単位に分離してあり、`Cache-Control` やエラー形式も本物と揃えてある。
 
 ### 進行中のタスク
 
@@ -128,113 +112,109 @@ PR #18 (`3eddd1f`) の `.sidebar-overlay` の `pointer-events` 修正は HEAD �
 
 ### 次にやること
 
-1. **ラズパイ実機へデプロイして確認**
+1. **SDK のある環境で `dotnet build && dotnet test` を実行する（最優先）**
+   本ブランチは C# を変更している（`SubscriptionService.cs` にメソッド追加、
+   `SubscriptionsController.cs` の DTO プロパティ名変更、テスト 5 本追加）が、
+   コンテナに .NET SDK が無く**未検証**。
+   `builds.dotnet.microsoft.com` はネットワークポリシーで遮断され導入もできない。
+   前ブランチから積み残しの `StaticFileCacheHeaderTests.cs` も同様。
+2. **ラズパイ実機へデプロイして確認**
    ```bash
    git pull && sudo ./infra/raspi/deploy.sh
-   curl -s http://localhost:5212/js/utils/api-client.js | grep -c reset  # 1 以上（新版が配信されている）
-   curl -sI http://localhost:5212/js/router.js | grep -i cache-control   # no-cache であること
-   curl -s http://localhost:5212/ | grep -o 'app.js?v=[0-9]*'            # ?v=20260728
+   curl -s http://localhost:5212/ | grep -o 'app.js?v=[0-9]*'   # ?v=20260729
    ```
-2. **iPhone 実機での確認（サイトデータを消さない状態から始めること）**
-   - 通常ウィンドウで開く → **自己修復が走って正常表示される**こと（白画面のままにならない）
-   - ログイン → ダッシュボード → 各ページ遷移
-   - 機内モードでログイン試行 → 15 秒でエラーバナーが出て、ローディング膜が消えること
-   - どうしても直らない場合の手動復旧:
-     設定 → Safari → 詳細 → Web サイトデータ → ラズパイの IP を左スワイプ → 削除
-3. **SDK のある環境で `dotnet build` && `dotnet test` を実行する**
-   コンテナに .NET SDK が無い（`builds.dotnet.microsoft.com` がネットワークポリシーで
-   ブロックされ導入もできない）ため未実行。ただし**本ブランチは C# を一切変更していない**ので
-   優先度は低い。前ブランチで追加された
-   `tests/FinFlow.Tests/Infrastructure/StaticFileCacheHeaderTests.cs` は依然として未実行。
-4. **認証が要る E2E の実行** — API サーバが必要なため本コンテナでは未実行
-   （静的サーバで代用したため、ログインを伴う 10 件は失敗する。
-   **変更前のツリーでも同じく失敗する**ことを確認済みで、回帰ではない）。
+3. **iPhone 実機での確認**
+   - サブスクを 3 件連続登録 → **3 件だけ**であること
+   - 削除 → キャンセル → 再度削除 が効くこと
+   - 一覧行の「削除」から直接消せること
+   - 入力欄が全幅で表示され、フォーカス時にページがズームしないこと
+4. **`login-overlay-regression.spec.js` の 1 スペックを直す**（今回スコープ外）
+   「固着したローディングオーバーレイ」は `.loading-overlay` に `pointer-events` の
+   指定が無いため、Playwright の actionability チェックが「遮られている」と判定して
+   `tap()` できない。**変更前のツリーでも同じく失敗する**ことを `git stash` で確認済み。
+   そもそも実ユーザーもオーバーレイ越しにはタップできないので、テストの前提が成立していない。
 
 ### 残課題（今回スコープ外）
 
-- **Chart.js のローカル同梱** — 現在も CDN から動的ロードするため、
-  オフラインの tailnet／ラズパイ LAN 環境ではグラフが表示されず
-  リスト表示にフォールバックする。オフライン運用を前提にするなら同梱すべき。
-  なお削除した `integrity` は空文字列のハッシュ（＝無効）だったので、
-  再度付けるなら実ファイルの sha384 を計算して照合すること。
-- `src/frontend/js/components/ff-header.js` と `ff-sidebar.js` はどこからも
-  import されていない**死にコード**（`index.html` の静的サイドバー実装と重複）。削除を推奨。
+- **Chart.js のローカル同梱** — タイムアウトを入れてフォールバックには確実に
+  到達するようにしたが、オフライン環境でグラフ自体を出すには同梱が必要。
+- **`.gitattributes` が無く改行コードが混在**（226 ファイル中 83 が CRLF）。
+  今回は「既存ファイルの改行コードを維持する」に留めた。導入は影響範囲が広いので別途判断。
+- `src/frontend/js/components/ff-header.js` と `ff-sidebar.js` は死にコード。
+- `src/FinFlow.Api/Models/SubscriptionModels.cs` の record 群も死にコード
+  （本物は Controller 末尾）。修正時に空振りしないよう注意。
 - iOS Safari 実機での自動テストは未実施（環境に WebKit が無く Chromium のみ）。
 
 ## ブロッカー・懸念事項
 
-- **本ブランチは C# を一切変更していない**ため、ビルド未検証によるリスクは低い
-  （SDK が無いのは変わらず。詳細は「次にやること」3）。
-  フロントエンドは Chromium（モバイルエミュレーション）で実ブラウザ検証済み:
-  新規回帰スペック 6/6（両モバイルプロファイル）＋ 独自ハーネス 9/9。
+- **C# のビルド・テストが未検証**（上記「次にやること」1）。
+- **`SubscriptionRequest.Description` → `Notes` の改名は JSON 契約が変わる。**
+  `docs/openapi.yaml` の仕様に合わせる修正で、リポジトリ内に `description` を
+  前提にしたコードが無いことは確認済み。
 - **エンティティ変更時はマイグレーションを 2 系統更新する必要がある**
   （SQL Server 用と SQLite 用）。手順は docs/DEPLOYMENT.md に記載。
 - **E2Eスイート（`tests/e2e/`）は本番環境に対して実行しないこと**。
-  `tests/e2e/helpers/auth.js` が `POST /api/auth/register` で実際にテストユーザーを都度登録するため。
-  ラズパイ常駐インスタンスに対しても実行しないこと。
+  `tests/e2e/helpers/auth.js` が `POST /api/auth/register` で実際にテストユーザーを
+  都度登録するため。ラズパイ常駐インスタンスに対しても実行しないこと。
+  （`npm run test:e2e:mock` はモックサーバー相手なので安全。）
 
 ## 重要な決定事項・メモ
 
-### フロントエンドのキャッシュ運用（今回追加）
+### イベントリスナーの寿命（今回明文化・`.claude/rules/javascript/hooks.md`）
+
+- **再描画されない要素（shell）へのリスナーは、ページ描画時に 1 回だけ貼る。
+  `loadAndRender()` のような再取得関数からは絶対に呼ばない。**
+- 一覧の項目は**永続コンテナへのイベント委譲**で扱う。
+- **`innerHTML` で UI を退避・復元しない。** 復元後の要素はリスナーを失う。
+- `btn.disabled` は多重リスナーには効かない。保険はハンドラ側のフラグで持つ。
+
+### Shadow DOM
+
+- グローバル CSS（タップ領域規約を含む）は**届かない**。コンポーネント内に自前で書く。
+- CSS カスタムプロパティは継承されるが、`:root` に**実際に定義されているか**確認する。
+- 検査ツールも `document.querySelectorAll` では貫通しない。
+  `tests/e2e/helpers/shadow-dom.js` の `tapTargetIssuesDeep()` を使う。
+
+### CSS の読み込み順
+
+`main.css → components.css → pages.css`。同じ詳細度なら**後勝ち**。
+**あるクラスのモバイル用オーバーライドは、ベース定義があるファイルと同じファイルに書く。**
+
+### フロントエンドのキャッシュ運用（既存）
 
 - **CSS/JS を変更したら `src/frontend/index.html` の `?v=` を必ず更新する。**
-  ビルドステップを持たない方針のため手動管理。
-  チェックリストは `.claude/rules/javascript/hooks.md` に追記済み。
-- 制約: ES モジュールの import 指定子にクエリは伝播しないため、
-  `app.js` が import する `router.js` / `utils/*.js` / `pages/*.js` には `?v=` が付かない。
-  それらはサーバー側の `Cache-Control: no-cache` に依存する。
-- **この制約は「古いまま」では終わらず、`?v=` が付く app.js だけが新版になる
-  「新旧混在」を生む。**モジュールを跨ぐ新 API は必ずオプショナル呼び出し（`?.`）で
-  導入すること。実際にこれで白画面事故が起きた（上記タスク E）。
+  現在 `20260729`。
+- ES モジュールの import 指定子にクエリは伝播しないため、`?v=` が付く `app.js` だけが
+  新版という**新旧混在**が起こりうる。モジュールを跨ぐ新 API は必ず
+  オプショナル呼び出し（`?.`）で導入すること。
 - **`index.html` のインライン起動ガードは必ずインラインのまま維持する。**
-  外部 `.js` に切り出すと、それ自体がキャッシュ事故の対象になり肝心なときに動かない。
   `app.js` 末尾の `window.__ffBooted = true` はガードの成功判定なので消さないこと。
 
-### 全画面オーバーレイの規約（今回明文化）
+### 全画面オーバーレイの規約（既存）
 
 - `position:fixed` + `inset:0` の要素は**見えていなくてもヒットテストは生きている**。
   非表示時は必ず `pointer-events:none`、表示時のみ `auto`。
-- `document.body` 直下に付けるオーバーレイは `#page-container` のクリアでは消えないため、
-  ルート遷移時に明示的に片付ける（`loadingManager.reset()` / `closeSidebar()`）。
+  `opacity:0` だけではフォーカス可能なまま残るので `visibility:hidden` も併せる。
+- `document.body` 直下に付けるオーバーレイはルート遷移時に明示的に片付ける。
 
-### ラズパイ運用
+### ラズパイ運用（既存）
 
-- DB は **SQLite**（SQL Server に ARM ビルドが無く、InMemory では再起動で消えるため）
-- アクセスは **LAN 内 HTTP 5212 直接**（nginx リバースプロキシは使わない）
-- 配置は **publish 済みバイナリを /opt/finflow**、DB は `/var/lib/finflow/finflow.db`
-- 機密値は `/etc/finflow/finflow.env`（`install.sh` が `Jwt__Key` を自動生成）
-- systemd ユニットに設定を足すときは、**値に空白が入りうるなら必ずクォートする**。
-  検証は `systemctl show <unit> -p Environment` で解釈後の値を見ること。
-- `launchSettings.json` は publish されず systemd からは読まれない。
-  待ち受けアドレスは必ず `ASPNETCORE_URLS` で明示すること。
-
-### フロントエンド／モバイル
-
-- モーダルの表示制御は `hidden` 属性 + `[hidden]{display:none!important}` グローバルガード
-- 44px タップ領域の拡大は「モバイル時（`@media (max-width:768px)`）のみ」に限定
-- ドロワー開閉中の背面スクロール抑止は `overflow:hidden`（`.body--drawer-open`）のみ
-  （`position:fixed` はスクロール位置が飛ぶ副作用のため不採用）
-- Playwright は WebKit 非対応環境のため全プロジェクトを Chromium ベースで構成
+- DB は **SQLite**、アクセスは **LAN 内 HTTP 5212 直接**
+- 配置は publish 済みバイナリを `/opt/finflow`、DB は `/var/lib/finflow/finflow.db`
+- 機密値は `/etc/finflow/finflow.env`
+- systemd ユニットに設定を足すときは、**値に空白が入りうるなら必ずクォートする**
+- 待ち受けアドレスは必ず `ASPNETCORE_URLS` で明示する
 
 ## ファイル変更の状態
 
 ```
-# ブランチ: claude/iphone-white-screen-issue-mqf4xp
-# C#: 変更なし（dotnet build / test は SDK が無く未実行だが、変更が無いため影響なし）
+# ブランチ: claude/subscription-duplicate-delete-ui-g2s2sh
 #
-# 変更したファイル:
-#   src/frontend/index.html                    起動ガード（インライン）/ <noscript> / ?v=20260728
-#   src/frontend/js/router.js                  loadingManager?.reset?.()
-#   src/frontend/js/app.js                     末尾に window.__ffBooted = true
-#   tests/e2e/boot-guard-regression.spec.js    新規（回帰テスト）
-#   .claude/rules/javascript/hooks.md          規約を明文化
+# フロントエンド検証（Chromium モバイルエミュレーション / Pixel 7 と iPhone 相当）:
+#   E2E 118 passed / 2 failed
+#   失敗 2 件は login-overlay-regression.spec.js の同一スペック（両プロファイル）で、
+#   git stash して変更前のツリーでも同じく失敗することを確認済み＝回帰ではない。
+#   二重登録の回帰テストは、バグを一時的に戻すと落ちることを実際に確認済み。
 #
-# フロントエンド検証（Chromium モバイルエミュレーション）:
-#   - boot-guard-regression: 6/6 パス（pixel7 / iphone-size 両方）
-#       * 旧 api-client.js が混ざっても白画面にならず操作できる
-#       * モジュール取得失敗時にエラー画面＋復旧ボタンが出る（自己修復は1回のみ）
-#       * 正常系でウォッチドッグが誤発火しない
-#   - 独自ハーネス: 9/9 パス（修正前コードで白画面が再現することの実証を含む）
-#   - ログイン必須の既存 E2E 10 件は API 不在で失敗するが、
-#     変更前のツリーでも同じく失敗することを確認済み（回帰ではない）
+# C#: dotnet build / dotnet test は SDK が無く未実行（次セッションの最優先事項）
 ```
